@@ -1,0 +1,146 @@
+{
+  "version": "5.0.0",
+  "id": "ly.img.video",
+  "assets": [
+    {
+      "id": "ly.img.video.pexels_drone",
+      "label": {
+        "en": "Drone Footage of a Surfer Barrelling a Wave"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.video/videos/pexels-drone-footage-of-a-surfer-barrelling-a-wave-12715991.mp4",
+        "thumbUri": "{{base_url}}/ly.img.video/thumbnails/pexels-drone-footage-of-a-surfer-barrelling-a-wave-12715991.jpg",
+        "mimeType": "video/mp4",
+        "kind": "video",
+        "fillType": "//ly.img.ubq/fill/video",
+        "width": 720,
+        "height": 1280,
+        "duration": "15.583333333333334"
+      },
+      "license": {
+        "name": "Nick Wehrli",
+        "url": "https://www.pexels.com/@oidonnyboy/"
+      }
+    },
+    {
+      "id": "ly.img.video.pexels_kampus_production_8154913",
+      "label": {
+        "en": "A Man Paddling while using a Surfboard"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.video/videos/pexels-kampus-production-8154913.mp4",
+        "thumbUri": "{{base_url}}/ly.img.video/thumbnails/pexels-kampus-production-8154913.jpg",
+        "mimeType": "video/mp4",
+        "kind": "video",
+        "fillType": "//ly.img.ubq/fill/video",
+        "width": 720,
+        "height": 1280,
+        "duration": "19.966666666666665"
+      },
+      "license": {
+        "name": "Kampus Production",
+        "url": "https://www.pexels.com/@kampus/"
+      }
+    },
+    {
+      "id": "ly.img.video.pexels_taryn_elliott_7108793",
+      "label": {
+        "en": "A Person Surfing and Getting Caught in the Waves"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.video/videos/pexels-taryn-elliott-7108793.mp4",
+        "thumbUri": "{{base_url}}/ly.img.video/thumbnails/pexels-taryn-elliott-7108793.jpg",
+        "mimeType": "video/mp4",
+        "kind": "video",
+        "fillType": "//ly.img.ubq/fill/video",
+        "width": 720,
+        "height": 1280,
+        "duration": "23.64"
+      },
+      "license": {
+        "name": "Taryn Elliott",
+        "url": "https://www.pexels.com/@taryn-elliott/"
+      }
+    },
+    {
+      "id": "ly.img.video.pexels_taryn_elliott_7108801",
+      "label": {
+        "en": "Person Walking Away the Beach"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.video/videos/pexels-taryn-elliott-7108801.mp4",
+        "thumbUri": "{{base_url}}/ly.img.video/thumbnails/pexels-taryn-elliott-7108801.jpg",
+        "mimeType": "video/mp4",
+        "kind": "video",
+        "fillType": "//ly.img.ubq/fill/video",
+        "width": 720,
+        "height": 1280,
+        "duration": "14.04"
+      },
+      "license": {
+        "name": "Taryn Elliott",
+        "url": "https://www.pexels.com/@taryn-elliott/"
+      }
+    },
+    {
+      "id": "ly.img.video.pexels_taryn_elliott_8713109",
+      "label": {
+        "en": "Man Picking Up a Surfboard"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.video/videos/pexels-taryn-elliott-8713109.mp4",
+        "thumbUri": "{{base_url}}/ly.img.video/thumbnails/pexels-taryn-elliott-8713109.jpg",
+        "mimeType": "video/mp4",
+        "kind": "video",
+        "fillType": "//ly.img.ubq/fill/video",
+        "width": 720,
+        "height": 1280,
+        "duration": "13.28"
+      },
+      "license": {
+        "name": "Taryn Elliott",
+        "url": "https://www.pexels.com/@taryn-elliott/"
+      }
+    },
+    {
+      "id": "ly.img.video.pexels_taryn_elliott_8713114",
+      "label": {
+        "en": "Man Carrying Surfboard While Walking"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.video/videos/pexels-taryn-elliott-8713114.mp4",
+        "thumbUri": "{{base_url}}/ly.img.video/thumbnails/pexels-taryn-elliott-8713114.jpg",
+        "mimeType": "video/mp4",
+        "kind": "video",
+        "fillType": "//ly.img.ubq/fill/video",
+        "width": 720,
+        "height": 1280,
+        "duration": "12.84"
+      },
+      "license": {
+        "name": "Taryn Elliott",
+        "url": "https://www.pexels.com/@taryn-elliott/"
+      }
+    },
+    {
+      "id": "ly.img.video.pexels_tony_schnagl_5528015",
+      "label": {
+        "en": "A Young Man Busy Typing On His Laptop"
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.video/videos/pexels-tony-schnagl-5528015.mp4",
+        "thumbUri": "{{base_url}}/ly.img.video/thumbnails/pexels-tony-schnagl-5528015.jpg",
+        "mimeType": "video/mp4",
+        "kind": "video",
+        "fillType": "//ly.img.ubq/fill/video",
+        "width": 720,
+        "height": 1280,
+        "duration": "16.16"
+      },
+      "license": {
+        "name": "Tony Schnagl",
+        "url": "https://www.pexels.com/@tony-schnagl/"
+      }
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "connections": {
+    "facebook": {
+      "status": "needs_config",
+      "details": "Add OAuth/client credentials and page mapping, then implement publish adapter wiring.",
+      "capabilities": ["oauth", "page_post", "image_post", "scheduled_post"]
+    },
+    "x": {
+      "status": "needs_config",
+      "details": "Add OAuth/app credentials and thread/media post support.",
+      "capabilities": ["oauth", "thread_post", "image_post", "scheduled_post"]
+    },
+    "instagram": {
+      "status": "needs_config",
+      "details": "Needs Instagram/Meta account link plus reel/image scheduling flow.",
+      "capabilities": ["oauth", "image_post", "reel_post", "scheduled_post"]
+    },
+    "tiktok": {
+      "status": "needs_config",
+      "details": "Needs TikTok auth plus video publishing and scheduler pipeline.",
+      "capabilities": ["oauth", "video_post", "scheduled_post"]
+    },
+    "linkedin": {
+      "status": "needs_config",
+      "details": "Needs LinkedIn app credentials and org/person posting routing.",
+      "capabilities": ["oauth", "text_post", "image_post", "scheduled_post"]
+    },
+    "youtube": {
+      "status": "planned",
+      "details": "Plan long-form/shorts upload workflow after core text/media scheduling is stable.",
+      "capabilities": ["oauth", "video_post", "scheduled_post"]
+    },
+    "rss": {
+      "status": "planned",
+      "details": "Wire feed ingest → content transform → post queue pipeline.",
+      "capabilities": ["feed_ingest", "content_transform", "publish_routing"]
+    }
+  },
+  "templates": [
+    {
+      "id": "social-post-text",
+      "name": "Universal text/link post flow",
+      "platforms": ["facebook", "x", "linkedin"],
+      "post_types": ["text", "link"],
+      "status": "draft",
+      "schedule": "Needs scheduler API + queue wiring",
+      "notes": "Connect compose UI, validation, draft storage, schedule persistence, and direct publish execution."
+    },
+    {
+      "id": "social-post-media",
+      "name": "Media publishing flow",
+      "platforms": ["instagram", "tiktok", "youtube"],
+      "post_types": ["image", "video", "carousel"],
+      "status": "draft",
+      "schedule": "Needs upload pipeline",
+      "notes": "Wire upload handling, media metadata, scheduling, and per-platform publish adapters."
+    },
+    {
+      "id": "social-rss",
+      "name": "RSS to social pipeline",
+      "platforms": ["rss", "x", "facebook", "linkedin"],
+      "post_types": ["rss", "text", "link"],
+      "status": "draft",
+      "schedule": "Feed-driven",
+      "notes": "Turn RSS items into drafts or scheduled posts with optional approval/autopublish logic."
+    }
+  ],
+  "agents": [
+    {
+      "id": "social-agent-default",
+      "name": "Default Social Agent",
+      "status": "draft",
+      "goal": "Create, schedule, publish, and optionally interact according to user rules.",
+      "capabilities": ["draft_posts", "schedule_posts", "repurpose_rss", "engagement_rules"]
+    }
+  ],
+  "main_agent": {
+    "connected": true,
+    "scope": ["connections", "posting", "scheduler", "rss", "agents"],
+    "notes": "Main chat agent should become a superuser for Social Station so it can do everything the UI can do and more."
+  },
+  "rss": {
+    "enabled": false,
+    "feed_count": 0,
+    "publish_targets": ["x", "facebook", "linkedin"],
+    "notes": "Populate feed definitions and target mappings here until dedicated UI/API write flows are added."
+  }
+}
