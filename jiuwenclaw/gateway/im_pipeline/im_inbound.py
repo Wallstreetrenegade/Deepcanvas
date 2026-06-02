@@ -162,7 +162,7 @@ class IMConversationProcessor:
             (model_name_override or "").strip()
             or react.get("model_name", "")
             or os.getenv("MODEL_NAME", "").strip()
-            or "gpt-5.4"
+            or "gpt-5.4-mini"
         )
         return name, mcc
 

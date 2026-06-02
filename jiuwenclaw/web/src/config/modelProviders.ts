@@ -3,8 +3,8 @@ export type ProviderBucket = 'chat' | 'video' | 'audio' | 'vision' | 'embed';
 
 export const PROVIDER_DEFAULTS: Record<ProviderBucket, Record<string, ProviderDefaults>> = {
   chat: {
-    OpenAI: { api_base: 'https://api.openai.com/v1', model: 'gpt-5.4' },
-    OpenRouter: { api_base: 'https://openrouter.ai/api/v1', model: 'openai/gpt-5.4' },
+    OpenAI: { api_base: 'https://api.openai.com/v1', model: 'gpt-5.4-mini' },
+    OpenRouter: { api_base: 'https://openrouter.ai/api/v1', model: 'openai/gpt-5.4-mini' },
     Gemini: { api_base: 'https://generativelanguage.googleapis.com/v1beta/openai/', model: 'gemini-2.5-flash' },
     Google: { api_base: 'https://generativelanguage.googleapis.com/v1beta/openai/', model: 'gemini-2.5-pro' },
     Anthropic: { api_base: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-5-20250929' },
@@ -45,15 +45,19 @@ export const PROJECT_FLOW_AI_PROVIDERS = [
 ] as const;
 
 export const CHAT_PROVIDER_MODELS: Record<string, string[]> = {
-  OpenAI: ['gpt-5.4', 'gpt-5.5', 'gpt-5.2', 'gpt-5.2-codex'],
+  OpenAI: ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.2-chat-latest', 'gpt-5.2', 'gpt-5.2-pro', 'gpt-5.2-codex', 'gpt-5-mini', 'gpt-5.5'],
   Google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-3-pro-preview'],
   Gemini: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-3-pro-preview'],
   Anthropic: ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022'],
   OpenRouter: [
+    'openai/gpt-5.4-mini',
     'openai/gpt-5.4',
-    'openai/gpt-5.5',
+    'openai/gpt-5.2-chat-latest',
     'openai/gpt-5.2',
+    'openai/gpt-5.2-pro',
     'openai/gpt-5.2-codex',
+    'openai/gpt-5-mini',
+    'openai/gpt-5.5',
     'anthropic/claude-sonnet-4.5',
     'anthropic/claude-opus-4.1',
     'google/gemini-2.5-pro',

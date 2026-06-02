@@ -30,7 +30,7 @@ _FAL_QUEUE_BASE = "https://queue.fal.run"
 # Defaults exposed to the client when a node does not yet specify model fields.
 _DEFAULT_AI_PROVIDER = "OpenAI"
 _DEFAULT_AI_API_BASE = "https://api.openai.com/v1"
-_DEFAULT_AI_MODEL = "gpt-5.4"
+_DEFAULT_AI_MODEL = "gpt-5.4-mini"
 _DEFAULT_VISION_BY_PROVIDER: dict[str, dict[str, str]] = {
     "openai": {"provider": "OpenAI", "api_base": "https://api.openai.com/v1", "model": "gpt-image-1"},
     "google": {"provider": "Google", "api_base": "https://generativelanguage.googleapis.com/v1beta/openai/", "model": "imagen-4.0-generate-preview"},

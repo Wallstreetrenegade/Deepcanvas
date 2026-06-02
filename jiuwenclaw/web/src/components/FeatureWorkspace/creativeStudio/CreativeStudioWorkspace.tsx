@@ -26,7 +26,7 @@ export function CreativeStudioWorkspace({ onExit: _onExit }: CreativeStudioWorks
       core: {
         baseURL: 'core/',
       },
-      devMode: true,
+      devMode: import.meta.env.DEV,
       license,
     };
   }, []);

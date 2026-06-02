@@ -1982,7 +1982,7 @@ class SkillManager:
             return {
                 "api_key": (os.getenv("API_KEY") or "").strip() or None,
                 "base_url": (os.getenv("API_BASE") or "").strip() or None,
-                "model": (os.getenv("MODEL_NAME") or "gpt-5.4").strip(),
+                "model": (os.getenv("MODEL_NAME") or "gpt-5.4-mini").strip(),
             }
 
         cfg = get_config() or {}
@@ -1990,13 +1990,13 @@ class SkillManager:
         mcc = react.get("model_client_config") or {}
         api_key = (mcc.get("api_key") or os.getenv("API_KEY") or "").strip()
         base_url = (mcc.get("api_base") or os.getenv("API_BASE") or "").strip()
-        model = (react.get("model_name") or os.getenv("MODEL_NAME") or "gpt-5.4").strip()
+        model = (react.get("model_name") or os.getenv("MODEL_NAME") or "gpt-5.4-mini").strip()
         if base_url.endswith("/chat/completions"):
             base_url = base_url.rsplit("/chat/completions", 1)[0]
         return {
             "api_key": api_key or None,
             "base_url": base_url or None,
-            "model": model or "gpt-5.4",
+            "model": model or "gpt-5.4-mini",
         }
 
     @staticmethod

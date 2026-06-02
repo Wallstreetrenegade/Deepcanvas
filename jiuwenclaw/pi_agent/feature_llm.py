@@ -42,8 +42,8 @@ PLACEHOLDER_MARKERS: tuple[str, ...] = (
 
 # Provider-specific defaults. Keys are lowercased provider strings.
 PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
-    "openai":      {"provider": "OpenAI",      "api_base": "https://api.openai.com/v1",                              "model": "gpt-5.4"},
-    "openrouter":  {"provider": "OpenRouter",  "api_base": "https://openrouter.ai/api/v1",                           "model": "openai/gpt-5.4"},
+    "openai":      {"provider": "OpenAI",      "api_base": "https://api.openai.com/v1",                              "model": "gpt-5.4-mini"},
+    "openrouter":  {"provider": "OpenRouter",  "api_base": "https://openrouter.ai/api/v1",                           "model": "openai/gpt-5.4-mini"},
     "google":      {"provider": "Google",      "api_base": "https://generativelanguage.googleapis.com/v1beta/openai", "model": "gemini-2.5-pro"},
     "gemini":      {"provider": "Gemini",      "api_base": "https://generativelanguage.googleapis.com/v1beta/openai", "model": "gemini-2.5-flash"},
     "anthropic":   {"provider": "Anthropic",   "api_base": "https://api.anthropic.com/v1",                           "model": "claude-sonnet-4-5-20250929"},

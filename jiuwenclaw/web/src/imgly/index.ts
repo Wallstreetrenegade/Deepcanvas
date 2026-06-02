@@ -10,7 +10,13 @@
 import CreativeEditorSDK from '@cesdk/cesdk-js';
 
 import {
+  BlurAssetSource,
+  ColorPaletteAssetSource,
+  CropPresetsAssetSource,
   DemoAssetSources,
+  EffectsAssetSource,
+  FiltersAssetSource,
+  PagePresetsAssetSource,
   StickerAssetSource,
   TextAssetSource,
   TextComponentAssetSource,
@@ -26,17 +32,13 @@ import { AdvancedVideoEditorConfig } from './config/plugin';
 export { AdvancedVideoEditorConfig } from './config/plugin';
 export { setupBackgroundRemovalPlugin } from './plugins/background-removal';
 
-function normalizeAssetBaseURL(baseURL: string): string {
-  return baseURL.endsWith('/') ? baseURL : `${baseURL}/`;
-}
-
 /**
  * Initialize the CE.SDK Advanced Video Editor with a complete configuration.
  *
  * @param cesdk - The CreativeEditorSDK instance to configure
  */
 export async function initAdvancedVideoEditor(cesdk: CreativeEditorSDK, assetBaseURL = '/assets/') {
-  const normalizedAssetBaseURL = normalizeAssetBaseURL(assetBaseURL);
+  const normalizedAssetBaseURL = assetBaseURL.endsWith('/') ? assetBaseURL : `${assetBaseURL}/`;
 
   // ============================================================================
   // Configuration Plugin
@@ -55,30 +57,36 @@ export async function initAdvancedVideoEditor(cesdk: CreativeEditorSDK, assetBas
   // Asset Source Plugins
   // ============================================================================
 
-  await cesdk.addPlugin(
-    new UploadAssetSources({
-      include: [
-        'ly.img.image.upload',
-        'ly.img.video.upload',
-        'ly.img.audio.upload'
-      ]
-    })
-  );
-
+  await cesdk.addPlugin(new BlurAssetSource({ baseURL: normalizedAssetBaseURL }));
+  await cesdk.addPlugin(new ColorPaletteAssetSource({ baseURL: normalizedAssetBaseURL }));
+  await cesdk.addPlugin(new CropPresetsAssetSource({ baseURL: normalizedAssetBaseURL }));
+  await cesdk.addPlugin(new EffectsAssetSource({ baseURL: normalizedAssetBaseURL }));
+  await cesdk.addPlugin(new FiltersAssetSource({ baseURL: normalizedAssetBaseURL }));
+  await cesdk.addPlugin(new PagePresetsAssetSource({ baseURL: normalizedAssetBaseURL }));
   await cesdk.addPlugin(
     new DemoAssetSources({
       baseURL: normalizedAssetBaseURL,
       include: [
-        'ly.img.templates.video.*',
+        'ly.img.templates.blank.*',
+        'ly.img.templates.presentation.*',
+        'ly.img.templates.print.*',
+        'ly.img.templates.social.*',
+        'ly.img.image.*',
         'ly.img.video.*'
       ]
     })
   );
-
   await cesdk.addPlugin(new StickerAssetSource({ baseURL: normalizedAssetBaseURL }));
   await cesdk.addPlugin(new TextAssetSource({ baseURL: normalizedAssetBaseURL }));
   await cesdk.addPlugin(new TextComponentAssetSource({ baseURL: normalizedAssetBaseURL }));
   await cesdk.addPlugin(new TypefaceAssetSource({ baseURL: normalizedAssetBaseURL }));
+  await cesdk.addPlugin(new UploadAssetSources({
+    include: [
+      'ly.img.image.upload',
+      'ly.img.video.upload',
+      'ly.img.audio.upload'
+    ]
+  }));
   await cesdk.addPlugin(new VectorShapeAssetSource({ baseURL: normalizedAssetBaseURL }));
 
   // ============================================================================

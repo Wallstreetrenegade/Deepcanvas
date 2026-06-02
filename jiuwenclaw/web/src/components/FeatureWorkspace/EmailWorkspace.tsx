@@ -16,18 +16,29 @@ function formatRelativeTime(value: string): string {
   return `${Math.round(deltaHours / 24)}d`;
 }
 
+function labelFromDraft(subject: string, fallback: string): string {
+  return subject.trim() || fallback;
+}
+
 export function EmailWorkspace(_: Props) {
   const {
     draft,
     inbox,
     sent,
+    templates,
+    campaigns,
     selectedInboxId,
+    rightPanel,
     hydrationStatus,
     hydrationError,
     hydrate,
+    setRightPanel,
     setSelectedInboxId,
     updateDraftField,
     clearDraft,
+    applyTemplate,
+    saveTemplateFromDraft,
+    createCampaignFromDraft,
     sendDraft,
     testEngine,
   } = useEmailStore();
@@ -68,6 +79,16 @@ export function EmailWorkspace(_: Props) {
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'Test failed');
     }
+  }
+
+  function handleSaveTemplate() {
+    const saved = saveTemplateFromDraft(labelFromDraft(draft.subject, 'Template'));
+    setStatusMessage(saved ? 'Template saved' : 'Template needs a name');
+  }
+
+  function handleCreateCampaign() {
+    const campaign = createCampaignFromDraft(labelFromDraft(draft.subject, 'Campaign'));
+    setStatusMessage(campaign ? 'Campaign created' : 'Campaign needs a name');
   }
 
   return (
@@ -131,32 +152,88 @@ export function EmailWorkspace(_: Props) {
             {hydrationStatus === 'error' ? <span>{hydrationError || 'Local cache'}</span> : null}
             {statusMessage ? <span>{statusMessage}</span> : null}
           </div>
+          <div className="feature-email__actions">
+            <button type="button" onClick={handleSaveTemplate}>Save template</button>
+            <button type="button" onClick={handleCreateCampaign}>Create campaign</button>
+          </div>
         </div>
       </section>
 
-      <aside className="feature-email__rail">
-        <div className="feature-email__rail-tabs">
-          <button type="button" className="is-active">Inbox</button>
+      <section className="feature-email__workspace">
+        <div className="feature-email__tabs">
+          {(['inbox', 'templates', 'campaigns'] as const).map((panel) => (
+            <button
+              key={panel}
+              type="button"
+              className={rightPanel === panel ? 'is-active' : ''}
+              onClick={() => setRightPanel(panel)}
+            >
+              {panel.charAt(0).toUpperCase() + panel.slice(1)}
+            </button>
+          ))}
         </div>
 
-        <div className="feature-email__rail-panel">
-          <div className="feature-email__list">
-            {inbox.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`feature-email__list-item ${item.id === selectedInbox?.id ? 'is-active' : ''}`}
-                onClick={() => setSelectedInboxId(item.id)}
-              >
-                <div className="feature-email__list-head">
-                  <strong>{item.subject}</strong>
-                  <span>{formatRelativeTime(item.receivedAt)}</span>
-                </div>
-                <span>{item.from}</span>
-                <p>{item.preview}</p>
-              </button>
-            ))}
-          </div>
+        <div className="feature-email__panel">
+          {rightPanel === 'inbox' && (
+            <div className="feature-email__list">
+              {inbox.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`feature-email__list-item ${item.id === selectedInbox?.id ? 'is-active' : ''}`}
+                  onClick={() => setSelectedInboxId(item.id)}
+                >
+                  <div className="feature-email__list-head">
+                    <strong>{item.subject}</strong>
+                    <span>{formatRelativeTime(item.receivedAt)}</span>
+                  </div>
+                  <span>{item.from}</span>
+                  <p>{item.preview}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {rightPanel === 'templates' && (
+            <div className="feature-email__stack">
+              <div className="feature-email__list">
+                {templates.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="feature-email__list-item"
+                    onClick={() => applyTemplate(item.id)}
+                  >
+                    <div className="feature-email__list-head">
+                      <strong>{item.name}</strong>
+                      <span>{formatRelativeTime(item.updatedAt)}</span>
+                    </div>
+                    <span>{item.subject || 'No subject'}</span>
+                    <p>{item.body.slice(0, 120)}</p>
+                  </button>
+                ))}
+                {templates.length === 0 ? <div className="feature-email__empty">No templates</div> : null}
+              </div>
+            </div>
+          )}
+
+          {rightPanel === 'campaigns' && (
+            <div className="feature-email__stack">
+              <div className="feature-email__list">
+                {campaigns.map((item) => (
+                  <div key={item.id} className="feature-email__list-item">
+                    <div className="feature-email__list-head">
+                      <strong>{item.name}</strong>
+                      <span>{formatRelativeTime(item.updatedAt)}</span>
+                    </div>
+                    <span>{item.subject || 'No subject'}</span>
+                    <p>{item.recipientCount} recipients · {item.status}</p>
+                  </div>
+                ))}
+                {campaigns.length === 0 ? <div className="feature-email__empty">No campaigns</div> : null}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="feature-email__rail-footer">
@@ -174,7 +251,7 @@ export function EmailWorkspace(_: Props) {
             {sent.length === 0 ? <div className="feature-email__empty">No sent mail</div> : null}
           </div>
         </div>
-      </aside>
+      </section>
     </div>
   );
 }

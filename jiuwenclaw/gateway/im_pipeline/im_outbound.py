@@ -72,7 +72,7 @@ class IMOutboundPipeline:
         api_base = (mcc_raw.get("api_base") or os.getenv("API_BASE") or "").strip()
         if api_base.endswith("/chat/completions"):
             api_base = api_base.rsplit("/chat/completions", 1)[0]
-        model_name = (react.get("model_name") or os.getenv("MODEL_NAME") or "gpt-5.4").strip()
+        model_name = (react.get("model_name") or os.getenv("MODEL_NAME") or "gpt-5.4-mini").strip()
         client_provider = mcc_raw.get("client_provider", "OpenAI")
 
         if not api_key or not api_base:
