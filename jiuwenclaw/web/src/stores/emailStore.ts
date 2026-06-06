@@ -3,10 +3,10 @@ import { mirrorFeatureState } from '../services/piMirror';
 import { webRequest } from '../services/webClient';
 
 const STORAGE_KEY_PREFIX = 'deep_canvas_email_v1';
-const EMAIL_STATE_VERSION = 1;
+const EMAIL_STATE_VERSION = 2;
 
-export type EmailEngine = 'resend' | 'postmark' | 'ses' | 'smtp';
-export type EmailRightPanel = 'inbox' | 'templates' | 'campaigns';
+export type EmailEngine = 'plunk' | 'resend' | 'postmark' | 'ses' | 'smtp';
+export type EmailRightPanel = 'inbox' | 'templates' | 'campaigns' | 'domains';
 export type EmailHydrationStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface EmailDraft {
@@ -58,6 +58,15 @@ export interface EmailSentItem {
   leadIds: string[];
 }
 
+export interface EmailDomainItem {
+  id?: string;
+  domain?: string;
+  name?: string;
+  status?: string;
+  verified?: boolean;
+  records?: unknown[];
+}
+
 interface StoredAuthUser {
   id: string;
   email: string;
@@ -78,15 +87,29 @@ interface EmailTestResponse {
   message?: unknown;
 }
 
+interface EmailTemplateResponse {
+  state?: unknown;
+  template?: unknown;
+}
+
+interface EmailCampaignResponse {
+  state?: unknown;
+  campaign?: unknown;
+}
+
 interface EmailSnapshot {
   schemaVersion: number;
   engine: EmailEngine;
+  domain: string;
+  domainStatus: string;
+  serviceStatus: string;
   rightPanel: EmailRightPanel;
   draft: EmailDraft;
   templates: EmailTemplate[];
   campaigns: EmailCampaign[];
   inbox: EmailInboxItem[];
   sent: EmailSentItem[];
+  domains: EmailDomainItem[];
   selectedInboxId: string | null;
   lastSavedAt: string;
 }
@@ -101,10 +124,11 @@ interface EmailState extends EmailSnapshot {
   updateDraftField: <K extends keyof EmailDraft>(key: K, value: EmailDraft[K]) => void;
   clearDraft: () => void;
   applyTemplate: (templateId: string) => void;
-  saveTemplateFromDraft: (name: string) => EmailTemplate | null;
-  createCampaignFromDraft: (name: string, recipientCount?: number) => EmailCampaign | null;
+  saveTemplateFromDraft: (name: string) => Promise<EmailTemplate | null>;
+  createCampaignFromDraft: (name: string, recipientCount?: number) => Promise<EmailCampaign | null>;
   sendDraft: (leadIds?: string[]) => Promise<EmailSentItem | null>;
   testEngine: () => Promise<string>;
+  syncMail: () => Promise<void>;
   composeForRecipients: (recipients: Array<{ email: string; name?: string; leadId?: string }>, subject?: string) => void;
 }
 
@@ -171,7 +195,10 @@ function createDefaultDraft(user: StoredAuthUser | null = readStoredAuthUser()):
 function createDefaultSnapshot(): EmailSnapshot {
   return {
     schemaVersion: EMAIL_STATE_VERSION,
-    engine: 'resend',
+    engine: 'plunk',
+    domain: '',
+    domainStatus: 'unknown',
+    serviceStatus: 'unknown',
     rightPanel: 'inbox',
     draft: createDefaultDraft(),
     templates: [
@@ -202,6 +229,7 @@ function createDefaultSnapshot(): EmailSnapshot {
       },
     ],
     sent: [],
+    domains: [],
     selectedInboxId: 'inbox_1',
     lastSavedAt: nowIso(),
   };
@@ -306,13 +334,17 @@ function normalizeSnapshot(value: unknown, fallback: EmailSnapshot = createDefau
   const selectedInboxId = cleanText(raw.selectedInboxId, 80);
   return {
     schemaVersion: EMAIL_STATE_VERSION,
-    engine: raw.engine === 'postmark' || raw.engine === 'ses' || raw.engine === 'smtp' ? raw.engine : fallback.engine,
-    rightPanel: raw.rightPanel === 'inbox' || raw.rightPanel === 'campaigns' ? raw.rightPanel : fallback.rightPanel,
+    engine: raw.engine === 'plunk' || raw.engine === 'postmark' || raw.engine === 'ses' || raw.engine === 'smtp' ? raw.engine : fallback.engine,
+    domain: cleanText(raw.domain, 240) || fallback.domain,
+    domainStatus: cleanText(raw.domainStatus, 40) || fallback.domainStatus,
+    serviceStatus: cleanText(raw.serviceStatus, 40) || fallback.serviceStatus,
+    rightPanel: raw.rightPanel === 'inbox' || raw.rightPanel === 'templates' || raw.rightPanel === 'campaigns' || raw.rightPanel === 'domains' ? raw.rightPanel : fallback.rightPanel,
     draft: normalizeDraft(raw.draft, fallback.draft),
     templates: templates.length ? templates : fallback.templates,
     campaigns,
     inbox: inbox.length ? inbox : fallback.inbox,
     sent,
+    domains: Array.isArray(raw.domains) ? raw.domains.filter((item): item is EmailDomainItem => Boolean(item && typeof item === 'object')) : fallback.domains,
     selectedInboxId: inbox.some((item) => item.id === selectedInboxId) ? selectedInboxId : inbox[0]?.id ?? fallback.selectedInboxId,
     lastSavedAt: cleanText(raw.lastSavedAt, 40) || fallback.lastSavedAt,
   };
@@ -342,11 +374,15 @@ function mirrorEmailSnapshot(snapshot: EmailSnapshot): void {
   mirrorFeatureState('email', {
     schemaVersion: snapshot.schemaVersion,
     engine: snapshot.engine,
+    domain: snapshot.domain,
+    domainStatus: snapshot.domainStatus,
+    serviceStatus: snapshot.serviceStatus,
     draft: snapshot.draft,
     templates: snapshot.templates,
     campaigns: snapshot.campaigns,
     inbox: snapshot.inbox,
     sent: snapshot.sent,
+    domains: snapshot.domains,
     rightPanel: snapshot.rightPanel,
     selectedInboxId: snapshot.selectedInboxId,
     lastSavedAt: snapshot.lastSavedAt,
@@ -377,6 +413,7 @@ function commitSnapshot(
 const initialSnapshot = readLocalSnapshot() ?? createDefaultSnapshot();
 
 export const EMAIL_ENGINE_OPTIONS: Array<{ value: EmailEngine; label: string }> = [
+  { value: 'plunk', label: 'Deep Canvas Mail' },
   { value: 'resend', label: 'Resend' },
   { value: 'postmark', label: 'Postmark' },
   { value: 'ses', label: 'SES' },
@@ -442,55 +479,39 @@ export const useEmailStore = create<EmailState>((set, get) => ({
     };
   }),
 
-  saveTemplateFromDraft: (name) => {
+  saveTemplateFromDraft: async (name) => {
     const cleanName = cleanText(name, 120);
     if (!cleanName) return null;
-    let saved: EmailTemplate | null = null;
-    commitSnapshot(set, (state) => {
-      const templateId = state.draft.templateId;
-      const nextTemplate: EmailTemplate = {
-        id: templateId || makeId('template'),
-        name: cleanName,
-        subject: state.draft.subject,
-        body: state.draft.body,
-        updatedAt: nowIso(),
-      };
-      saved = nextTemplate;
-      const templates = templateId
-        ? state.templates.map((item) => item.id === templateId ? nextTemplate : item)
-        : [nextTemplate, ...state.templates];
-      return {
-        ...state,
-        templates,
-        rightPanel: 'templates',
-        draft: { ...state.draft, templateId: nextTemplate.id },
-      };
-    });
-    return saved;
+    const state = get();
+    const template: EmailTemplate = {
+      id: state.draft.templateId || makeId('template'),
+      name: cleanName,
+      subject: state.draft.subject,
+      body: state.draft.body,
+      updatedAt: nowIso(),
+    };
+    const response = await webRequest<EmailTemplateResponse>(
+      'email.save_template',
+      { template },
+      { timeoutMs: 90000 }
+    );
+    const next = normalizeSnapshot(response?.state, state);
+    applySnapshot(set, next, state.hydrationStatus === 'idle' ? 'ready' : state.hydrationStatus);
+    return normalizeTemplate(response?.template, 0) ?? next.templates.find((item) => item.id === template.id) ?? null;
   },
 
-  createCampaignFromDraft: (name, recipientCount = splitEmails(get().draft.to).length) => {
+  createCampaignFromDraft: async (name, recipientCount = splitEmails(get().draft.to).length) => {
     const cleanName = cleanText(name, 120);
     if (!cleanName) return null;
-    let campaign: EmailCampaign | null = null;
-    commitSnapshot(set, (state) => {
-      campaign = {
-        id: makeId('campaign'),
-        name: cleanName,
-        subject: state.draft.subject,
-        templateId: state.draft.templateId,
-        recipientCount,
-        status: 'draft',
-        updatedAt: nowIso(),
-      };
-      return {
-        ...state,
-        campaigns: [campaign, ...state.campaigns],
-        rightPanel: 'campaigns',
-        draft: { ...state.draft, campaignId: campaign.id },
-      };
-    });
-    return campaign;
+    const state = get();
+    const response = await webRequest<EmailCampaignResponse>(
+      'email.create_campaign',
+      { name: cleanName, recipientCount, draft: state.draft },
+      { timeoutMs: 90000 }
+    );
+    const next = normalizeSnapshot(response?.state, state);
+    applySnapshot(set, next, state.hydrationStatus === 'idle' ? 'ready' : state.hydrationStatus);
+    return normalizeCampaign(response?.campaign, 0) ?? next.campaigns[0] ?? null;
   },
 
   sendDraft: async (leadIds = []) => {
@@ -516,6 +537,11 @@ export const useEmailStore = create<EmailState>((set, get) => ({
       { timeoutMs: 90000 }
     );
     return cleanText(response?.message, 240) || `Test email sent to ${cleanText(response?.target, 240) || target}`;
+  },
+
+  syncMail: async () => {
+    const response = await webRequest<EmailStateResponse>('email.sync', {}, { timeoutMs: 30000 });
+    applySnapshot(set, normalizeSnapshot(response?.state, get()), get().hydrationStatus === 'idle' ? 'ready' : get().hydrationStatus);
   },
 
   composeForRecipients: (recipients, subject = '') => commitSnapshot(set, (state) => {

@@ -18,7 +18,7 @@ from . import state as pi_state
 FEATURE = "email"
 logger = logging.getLogger(__name__)
 
-_ALLOWED_ENGINES = {"resend", "postmark", "ses", "smtp"}
+_ALLOWED_ENGINES = {"plunk", "resend", "postmark", "ses", "smtp"}
 _DEFAULT_FROM = "hello@deepcanvas.ai"
 
 
@@ -50,8 +50,11 @@ def _default_draft() -> dict[str, Any]:
 def _default_state() -> dict[str, Any]:
     now = _now_iso()
     return {
-        "schemaVersion": 1,
-        "engine": _env("EMAIL_ENGINE", default="resend") or "resend",
+        "schemaVersion": 2,
+        "engine": _env("EMAIL_ENGINE", default="plunk") or "plunk",
+        "domain": _env("EMAIL_DOMAIN", "PLUNK_DOMAIN"),
+        "domainStatus": "unknown",
+        "serviceStatus": "unknown",
         "rightPanel": "templates",
         "draft": _default_draft(),
         "templates": [],
@@ -103,12 +106,17 @@ def _normalize_state(value: Any) -> dict[str, Any]:
     raw = value if isinstance(value, dict) else {}
     engine = _clean_text(raw.get("engine"), 40).lower()
     base["engine"] = engine if engine in _ALLOWED_ENGINES else base["engine"]
-    if raw.get("rightPanel") in {"inbox", "templates", "campaigns"}:
+    base["domain"] = _clean_text(raw.get("domain"), 240) or base["domain"]
+    base["domainStatus"] = _clean_text(raw.get("domainStatus"), 40) or base["domainStatus"]
+    base["serviceStatus"] = _clean_text(raw.get("serviceStatus"), 40) or base["serviceStatus"]
+    if raw.get("rightPanel") in {"inbox", "templates", "campaigns", "domains"}:
         base["rightPanel"] = raw["rightPanel"]
     base["draft"] = _normalize_draft(raw.get("draft"), base["draft"])
     for key in ("templates", "campaigns", "inbox", "sent"):
         if isinstance(raw.get(key), list):
             base[key] = [item for item in raw[key] if isinstance(item, dict)]
+    if isinstance(raw.get("domains"), list):
+        base["domains"] = [item for item in raw["domains"] if isinstance(item, dict)]
     selected = _clean_text(raw.get("selectedInboxId"), 80)
     base["selectedInboxId"] = selected or None
     base["lastSavedAt"] = _clean_text(raw.get("lastSavedAt"), 40) or base["lastSavedAt"]
@@ -131,10 +139,80 @@ def _html_body(text: str) -> str:
 
 
 def _resolve_engine(requested: str | None) -> str:
-    engine = (requested or "").strip().lower() or _env("EMAIL_ENGINE", default="resend").lower() or "resend"
+    engine = (requested or "").strip().lower() or _env("EMAIL_ENGINE", default="plunk").lower() or "plunk"
     if engine not in _ALLOWED_ENGINES:
         raise ValueError(f"unsupported email engine: {engine}")
     return engine
+
+
+def _plunk_base() -> str:
+    return _env("PLUNK_API_BASE", "EMAIL_API_BASE", default="https://next-api.useplunk.com").rstrip("/")
+
+
+def _plunk_key() -> str:
+    return _env("PLUNK_SECRET_KEY", "EMAIL_API_KEY", "EMAIL_TOKEN")
+
+
+def _plunk_project_id() -> str:
+    return _env("PLUNK_PROJECT_ID")
+
+
+async def _plunk_request(
+    method: str,
+    path: str,
+    *,
+    json_body: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+    timeout: float = 60.0,
+) -> Any:
+    api_key = _plunk_key()
+    if not api_key:
+        raise RuntimeError("Plunk secret key is missing")
+    url = f"{_plunk_base()}/{path.lstrip('/')}"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.request(method.upper(), url, headers=headers, json=json_body, params=params)
+    data: Any = response.json() if response.content else {}
+    if response.status_code >= 400:
+        error = data.get("error") if isinstance(data, dict) else None
+        message = ""
+        if isinstance(error, dict):
+            message = str(error.get("message") or error.get("code") or "")
+        if not message and isinstance(data, dict):
+            message = str(data.get("message") or data.get("error") or "")
+        raise RuntimeError(message or response.text[:300] or f"Plunk request failed: {response.status_code}")
+    if isinstance(data, dict) and data.get("success") is False:
+        error = data.get("error")
+        if isinstance(error, dict):
+            raise RuntimeError(str(error.get("message") or error.get("code") or "Plunk request failed"))
+        raise RuntimeError(str(error or "Plunk request failed"))
+    return data
+
+
+def _unwrap_plunk_data(value: Any) -> Any:
+    if isinstance(value, dict) and value.get("success") is True and "data" in value:
+        return value.get("data")
+    return value
+
+
+async def _send_via_plunk(draft: dict[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "from": draft["from"],
+        "to": _split_emails(draft["to"]),
+        "subject": draft["subject"],
+        "body": _html_body(draft["body"]),
+    }
+    if draft.get("templateId"):
+        payload["template"] = draft["templateId"]
+    if draft.get("cc"):
+        payload["cc"] = _split_emails(draft["cc"])
+    if draft.get("bcc"):
+        payload["bcc"] = _split_emails(draft["bcc"])
+    data = _unwrap_plunk_data(await _plunk_request("POST", "/v1/send", json_body=payload, timeout=90.0))
+    provider_id = ""
+    if isinstance(data, dict):
+        provider_id = str(data.get("email") or data.get("messageId") or data.get("id") or "")
+    return {"providerMessageId": provider_id}
 
 
 def _resolve_smtp_settings(engine: str) -> dict[str, Any]:
@@ -243,6 +321,8 @@ async def _send_via_smtp_like(engine: str, draft: dict[str, Any]) -> dict[str, A
 
 
 async def _send_email(engine: str, draft: dict[str, Any]) -> dict[str, Any]:
+    if engine == "plunk":
+        return await _send_via_plunk(draft)
     if engine == "resend":
         return await _send_via_resend(draft)
     if engine == "postmark":
@@ -269,6 +349,114 @@ def _build_test_draft(engine: str, target: str) -> dict[str, Any]:
     }
 
 
+def _normalize_remote_template(value: Any, index: int) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    name = _clean_text(value.get("name") or value.get("title"), 120)
+    template_id = _clean_text(value.get("id"), 100)
+    if not template_id or not name:
+        return None
+    return {
+        "id": template_id,
+        "name": name,
+        "subject": _clean_text(value.get("subject"), 240),
+        "body": _clean_text(value.get("body") or value.get("html"), 12000),
+        "updatedAt": _clean_text(value.get("updatedAt") or value.get("createdAt"), 40) or _now_iso(),
+        "remote": True,
+        "index": index,
+    }
+
+
+def _normalize_remote_campaign(value: Any, index: int) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    name = _clean_text(value.get("name") or value.get("title"), 120)
+    campaign_id = _clean_text(value.get("id"), 100)
+    if not campaign_id or not name:
+        return None
+    status = _clean_text(value.get("status"), 40).lower() or "draft"
+    return {
+        "id": campaign_id,
+        "name": name,
+        "subject": _clean_text(value.get("subject"), 240),
+        "templateId": _clean_text(value.get("templateId") or value.get("template"), 100) or None,
+        "recipientCount": int(value.get("recipientCount") or value.get("totalRecipients") or 0),
+        "status": status if status in {"draft", "queued", "sent"} else "draft",
+        "updatedAt": _clean_text(value.get("updatedAt") or value.get("createdAt"), 40) or _now_iso(),
+        "remote": True,
+        "index": index,
+    }
+
+
+def _items_from_list_response(value: Any) -> list[Any]:
+    if isinstance(value, dict) and isinstance(value.get("data"), list):
+        return value["data"]
+    if isinstance(value, list):
+        return value
+    return []
+
+
+async def _refresh_plunk_state(state: dict[str, Any]) -> dict[str, Any]:
+    if _resolve_engine(state.get("engine")) != "plunk" or not _plunk_key():
+        state["serviceStatus"] = "not_configured"
+        return state
+    try:
+        config = await _plunk_request("GET", "/config", timeout=20.0)
+        state["serviceStatus"] = "ready" if isinstance(config, dict) else "ready"
+    except Exception as exc:  # noqa: BLE001
+        state["serviceStatus"] = "error"
+        state["serviceError"] = str(exc)
+        return state
+    try:
+        templates = _items_from_list_response(await _plunk_request("GET", "/templates", params={"limit": 50}, timeout=30.0))
+        normalized = [_normalize_remote_template(item, idx) for idx, item in enumerate(templates)]
+        state["templates"] = [item for item in normalized if item]
+    except Exception as exc:  # noqa: BLE001
+        state["templatesError"] = str(exc)
+    try:
+        campaigns = _items_from_list_response(await _plunk_request("GET", "/campaigns", params={"limit": 50}, timeout=30.0))
+        normalized = [_normalize_remote_campaign(item, idx) for idx, item in enumerate(campaigns)]
+        state["campaigns"] = [item for item in normalized if item]
+    except Exception as exc:  # noqa: BLE001
+        state["campaignsError"] = str(exc)
+    project_id = _plunk_project_id()
+    if project_id:
+        try:
+            domains = _items_from_list_response(await _plunk_request("GET", f"/domains/project/{project_id}", timeout=30.0))
+            state["domains"] = domains
+            domain_name = _env("EMAIL_DOMAIN", "PLUNK_DOMAIN")
+            match = next((item for item in domains if isinstance(item, dict) and item.get("domain") == domain_name), None)
+            if isinstance(match, dict):
+                state["domainStatus"] = "verified" if match.get("verified") or match.get("status") == "verified" else "pending"
+        except Exception as exc:  # noqa: BLE001
+            state["domainsError"] = str(exc)
+    return state
+
+
+async def _create_plunk_template(template: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "name": template["name"],
+        "from": template.get("from") or _env("EMAIL_FROM_ADDRESS", "EMAIL_ADDRESS", default=_DEFAULT_FROM),
+        "subject": template.get("subject") or "",
+        "body": _html_body(template.get("body") or ""),
+    }
+    data = await _plunk_request("POST", "/templates", json_body=payload, timeout=60.0)
+    return _normalize_remote_template(data, 0) or {**template, "remote": False}
+
+
+async def _create_plunk_campaign(campaign: dict[str, Any], draft: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "name": campaign["name"],
+        "from": draft.get("from") or _env("EMAIL_FROM_ADDRESS", "EMAIL_ADDRESS", default=_DEFAULT_FROM),
+        "subject": draft.get("subject") or campaign.get("subject") or "",
+        "body": _html_body(draft.get("body") or ""),
+    }
+    if draft.get("templateId"):
+        payload["templateId"] = draft["templateId"]
+    data = await _plunk_request("POST", "/campaigns", json_body=payload, timeout=60.0)
+    return _normalize_remote_campaign(data, 0) or {**campaign, "remote": False}
+
+
 def register_email_handlers(channel: Any) -> None:
     async def _reply(ws, req_id, *, state: dict[str, Any], extra: dict[str, Any] | None = None) -> None:
         payload: dict[str, Any] = {"state": state}
@@ -280,7 +468,8 @@ def register_email_handlers(channel: Any) -> None:
         await channel.send_response(ws, req_id, ok=False, error=message, code=code)
 
     async def _get_state(ws, req_id, params, session_id):
-        await _reply(ws, req_id, state=_save_state(_load_state()))
+        state = await _refresh_plunk_state(_load_state())
+        await _reply(ws, req_id, state=_save_state(state))
 
     async def _send(ws, req_id, params, session_id):
         p = params if isinstance(params, dict) else {}
@@ -334,6 +523,92 @@ def register_email_handlers(channel: Any) -> None:
         state = _save_state(state)
         await _reply(ws, req_id, state=state, extra={"sentItem": sent_item})
 
+    async def _save_template(ws, req_id, params, session_id):
+        p = params if isinstance(params, dict) else {}
+        state = _load_state()
+        raw = p.get("template") if isinstance(p.get("template"), dict) else {}
+        template = {
+            "id": _clean_text(raw.get("id"), 100) or f"template_{uuid.uuid4().hex[:10]}",
+            "name": _clean_text(raw.get("name"), 120),
+            "subject": _clean_text(raw.get("subject"), 240),
+            "body": _clean_text(raw.get("body"), 12000),
+            "updatedAt": _now_iso(),
+        }
+        if not template["name"]:
+            return await _fail(ws, req_id, "Template name is required")
+        if not template["subject"] and not template["body"]:
+            return await _fail(ws, req_id, "Template needs a subject or body")
+        try:
+            if _resolve_engine(state.get("engine")) == "plunk" and _plunk_key():
+                template = await _create_plunk_template(template)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[email.save_template] %s", exc)
+            template["remoteError"] = str(exc)
+        existing = [item for item in state.get("templates", []) if isinstance(item, dict) and item.get("id") != template["id"]]
+        state["templates"] = [template, *existing][:100]
+        state = _save_state(state)
+        await _reply(ws, req_id, state=state, extra={"template": template})
+
+    async def _create_campaign(ws, req_id, params, session_id):
+        p = params if isinstance(params, dict) else {}
+        state = _load_state()
+        draft = _normalize_draft(p.get("draft"), state["draft"])
+        name = _clean_text(p.get("name"), 120) or draft["subject"] or "Campaign"
+        campaign = {
+            "id": f"campaign_{uuid.uuid4().hex[:10]}",
+            "name": name,
+            "subject": draft["subject"],
+            "templateId": draft.get("templateId"),
+            "recipientCount": len(_split_emails(draft["to"])),
+            "status": "draft",
+            "updatedAt": _now_iso(),
+        }
+        if not draft["subject"] and not draft["body"]:
+            return await _fail(ws, req_id, "Campaign needs an email subject or body")
+        try:
+            if _resolve_engine(state.get("engine")) == "plunk" and _plunk_key():
+                campaign = await _create_plunk_campaign(campaign, draft)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[email.create_campaign] %s", exc)
+            campaign["remoteError"] = str(exc)
+        state["campaigns"] = [campaign, *[item for item in state.get("campaigns", []) if isinstance(item, dict) and item.get("id") != campaign["id"]]][:100]
+        state["draft"] = {**draft, "campaignId": campaign["id"]}
+        state = _save_state(state)
+        await _reply(ws, req_id, state=state, extra={"campaign": campaign})
+
+    async def _sync(ws, req_id, params, session_id):
+        state = await _refresh_plunk_state(_load_state())
+        await _reply(ws, req_id, state=_save_state(state))
+
+    async def _add_domain(ws, req_id, params, session_id):
+        p = params if isinstance(params, dict) else {}
+        domain = _clean_text(p.get("domain"), 240) or _env("EMAIL_DOMAIN", "PLUNK_DOMAIN")
+        if not domain:
+            return await _fail(ws, req_id, "Domain is required")
+        try:
+            result = await _plunk_request("POST", "/domains", json_body={"domain": domain}, timeout=60.0)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[email.add_domain] %s", exc)
+            return await _fail(ws, req_id, str(exc), "EMAIL_DOMAIN_FAILED")
+        state = _load_state()
+        state["domain"] = domain
+        state["domainStatus"] = "pending"
+        state = _save_state(state)
+        await _reply(ws, req_id, state=state, extra={"domain": result})
+
+    async def _verify_domain(ws, req_id, params, session_id):
+        p = params if isinstance(params, dict) else {}
+        domain_id = _clean_text(p.get("domainId"), 120)
+        if not domain_id:
+            return await _fail(ws, req_id, "Domain id is required")
+        try:
+            result = await _plunk_request("GET", f"/domains/{domain_id}/verify", timeout=60.0)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[email.verify_domain] %s", exc)
+            return await _fail(ws, req_id, str(exc), "EMAIL_DOMAIN_VERIFY_FAILED")
+        state = await _refresh_plunk_state(_load_state())
+        await _reply(ws, req_id, state=_save_state(state), extra={"domain": result})
+
     async def _test_provider(ws, req_id, params, session_id):
         p = params if isinstance(params, dict) else {}
         state = _load_state()
@@ -362,6 +637,11 @@ def register_email_handlers(channel: Any) -> None:
         "email.get_state": _get_state,
         "email.send": _send,
         "email.test_provider": _test_provider,
+        "email.sync": _sync,
+        "email.save_template": _save_template,
+        "email.create_campaign": _create_campaign,
+        "email.add_domain": _add_domain,
+        "email.verify_domain": _verify_domain,
     }
     for name, fn in methods.items():
         channel.register_method(name, fn)

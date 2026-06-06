@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from 'react-i18next';
-import { PROVIDER_DEFAULTS, getProviderModels, getProviderOptions, providerKeyParts } from '../../config/modelProviders';
+import { PROVIDER_DEFAULTS, getProviderModels, getProviderOptions, normalizeModelSelection, providerKeyParts } from '../../config/modelProviders';
 import { useChatStore } from '../../stores';
 import { PermissionsToolsEditor } from "./PermissionsToolsEditor";
 
@@ -38,6 +38,9 @@ const EMAIL_KEYS = new Set([
   "email_reply_to",
   "email_api_base",
   "email_api_key",
+  "email_domain",
+  "plunk_project_id",
+  "plunk_secret_key",
   "smtp_host",
   "smtp_port",
   "smtp_username",
@@ -277,6 +280,9 @@ const KEY_DISPLAY_I18N: Record<string, string> = {
   email_reply_to: "config.keys.emailReplyTo",
   email_api_base: "config.keys.emailApiBase",
   email_api_key: "config.keys.emailApiKey",
+  email_domain: "config.keys.emailDomain",
+  plunk_project_id: "config.keys.plunkProjectId",
+  plunk_secret_key: "config.keys.plunkSecretKey",
   smtp_host: "config.keys.smtpHost",
   smtp_port: "config.keys.smtpPort",
   smtp_username: "config.keys.smtpUsername",
@@ -296,6 +302,9 @@ const KEY_PLACEHOLDER_I18N: Record<string, string> = {
   email_reply_to: "config.keys.emailReplyToPlaceholder",
   email_api_base: "config.keys.emailApiBasePlaceholder",
   email_api_key: "config.keys.emailApiKeyPlaceholder",
+  email_domain: "config.keys.emailDomainPlaceholder",
+  plunk_project_id: "config.keys.plunkProjectIdPlaceholder",
+  plunk_secret_key: "config.keys.plunkSecretKeyPlaceholder",
   smtp_host: "config.keys.smtpHostPlaceholder",
   smtp_port: "config.keys.smtpPortPlaceholder",
   smtp_username: "config.keys.smtpUsernamePlaceholder",
@@ -311,11 +320,14 @@ const KEY_SORT_PRIORITY: Record<string, number> = {
   email_reply_to: 2,
   email_api_base: 3,
   email_api_key: 4,
-  smtp_host: 5,
-  smtp_port: 6,
-  smtp_username: 7,
-  smtp_password: 8,
-  smtp_use_tls: 9,
+  email_domain: 5,
+  plunk_project_id: 6,
+  plunk_secret_key: 7,
+  smtp_host: 8,
+  smtp_port: 9,
+  smtp_username: 10,
+  smtp_password: 11,
+  smtp_use_tls: 12,
   free_search_ddg_enabled: 0,
   free_search_bing_enabled: 1,
   free_search_proxy_url: 2,
@@ -470,6 +482,7 @@ function GroupSection({
                           onChange={(e) => onChange(key, e.target.value)}
                           className="w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px] outline-none focus:border-accent"
                         >
+                          <option value="plunk">Deep Canvas Mail</option>
                           <option value="resend">Resend</option>
                           <option value="postmark">Postmark</option>
                           <option value="ses">SES</option>
@@ -695,6 +708,14 @@ export function ConfigPanel({
     const next: Record<string, string> = {};
     for (const [key, value] of Object.entries(config)) {
       next[key] = normalizeConfigValue(value);
+    }
+    for (const key of Object.keys(next)) {
+      const providerKey = modelProviderKeyForModelKey(key);
+      const parts = providerKey ? providerKeyParts(providerKey) : null;
+      const provider = providerKey ? next[providerKey] ?? '' : '';
+      if (parts && (key.endsWith('model') || key === 'model')) {
+        next[key] = normalizeModelSelection(parts.bucket, provider, next[key]);
+      }
     }
     return next;
   }, [config]);

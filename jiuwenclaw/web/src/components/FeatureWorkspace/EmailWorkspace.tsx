@@ -27,6 +27,10 @@ export function EmailWorkspace(_: Props) {
     sent,
     templates,
     campaigns,
+    domains,
+    serviceStatus,
+    domain,
+    domainStatus,
     selectedInboxId,
     rightPanel,
     hydrationStatus,
@@ -41,6 +45,7 @@ export function EmailWorkspace(_: Props) {
     createCampaignFromDraft,
     sendDraft,
     testEngine,
+    syncMail,
   } = useEmailStore();
 
   const [statusMessage, setStatusMessage] = useState('');
@@ -81,14 +86,31 @@ export function EmailWorkspace(_: Props) {
     }
   }
 
-  function handleSaveTemplate() {
-    const saved = saveTemplateFromDraft(labelFromDraft(draft.subject, 'Template'));
-    setStatusMessage(saved ? 'Template saved' : 'Template needs a name');
+  async function handleSaveTemplate() {
+    try {
+      const saved = await saveTemplateFromDraft(labelFromDraft(draft.subject, 'Template'));
+      setStatusMessage(saved ? 'Template saved' : 'Template needs a name');
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'Template save failed');
+    }
   }
 
-  function handleCreateCampaign() {
-    const campaign = createCampaignFromDraft(labelFromDraft(draft.subject, 'Campaign'));
-    setStatusMessage(campaign ? 'Campaign created' : 'Campaign needs a name');
+  async function handleCreateCampaign() {
+    try {
+      const campaign = await createCampaignFromDraft(labelFromDraft(draft.subject, 'Campaign'));
+      setStatusMessage(campaign ? 'Campaign created' : 'Campaign needs a name');
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'Campaign creation failed');
+    }
+  }
+
+  async function handleSync() {
+    try {
+      await syncMail();
+      setStatusMessage('Synced');
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'Sync failed');
+    }
   }
 
   return (
@@ -103,6 +125,7 @@ export function EmailWorkspace(_: Props) {
             aria-label="From"
           />
           <button type="button" onClick={() => void handleTest()}>Test</button>
+          <button type="button" onClick={() => void handleSync()}>Sync</button>
           <button type="button" onClick={clearDraft}>Clear</button>
           <button type="button" className="feature-email__primary" onClick={() => void handleSend()}>Send</button>
         </div>
@@ -151,17 +174,18 @@ export function EmailWorkspace(_: Props) {
             <span>{recipientCount} recipients</span>
             {hydrationStatus === 'error' ? <span>{hydrationError || 'Local cache'}</span> : null}
             {statusMessage ? <span>{statusMessage}</span> : null}
+            <span>{serviceStatus}</span>
           </div>
           <div className="feature-email__actions">
-            <button type="button" onClick={handleSaveTemplate}>Save template</button>
-            <button type="button" onClick={handleCreateCampaign}>Create campaign</button>
+            <button type="button" onClick={() => void handleSaveTemplate()}>Save template</button>
+            <button type="button" onClick={() => void handleCreateCampaign()}>Create campaign</button>
           </div>
         </div>
       </section>
 
       <section className="feature-email__workspace">
         <div className="feature-email__tabs">
-          {(['inbox', 'templates', 'campaigns'] as const).map((panel) => (
+          {(['inbox', 'templates', 'campaigns', 'domains'] as const).map((panel) => (
             <button
               key={panel}
               type="button"
@@ -231,6 +255,30 @@ export function EmailWorkspace(_: Props) {
                   </div>
                 ))}
                 {campaigns.length === 0 ? <div className="feature-email__empty">No campaigns</div> : null}
+              </div>
+            </div>
+          )}
+
+          {rightPanel === 'domains' && (
+            <div className="feature-email__stack">
+              <div className="feature-email__domain-card">
+                <div className="feature-email__list-head">
+                  <strong>{domain || 'No domain selected'}</strong>
+                  <span>{domainStatus}</span>
+                </div>
+                <p>Sending is handled by Deep Canvas Mail.</p>
+              </div>
+              <div className="feature-email__list">
+                {domains.map((item, index) => (
+                  <div key={item.id || item.domain || index} className="feature-email__list-item">
+                    <div className="feature-email__list-head">
+                      <strong>{item.domain || item.name || 'Domain'}</strong>
+                      <span>{item.verified ? 'verified' : item.status || 'pending'}</span>
+                    </div>
+                    <p>{Array.isArray(item.records) ? `${item.records.length} DNS records` : 'DNS records available after setup'}</p>
+                  </div>
+                ))}
+                {domains.length === 0 ? <div className="feature-email__empty">No domains loaded</div> : null}
               </div>
             </div>
           )}

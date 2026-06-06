@@ -1,7 +1,7 @@
 .feature-email {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(22rem, 0.9fr);
-  gap: 0.75rem;
+  grid-template-columns: minmax(40rem, 1.35fr) minmax(28rem, 0.8fr);
+  gap: 0;
   min-height: 100%;
   width: 100%;
 }
@@ -24,6 +24,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
+  border-left: 0;
 }
 
 .feature-email__toolbar,
@@ -117,6 +118,21 @@
 .feature-email__tabs button.is-active {
   border-color: rgba(80, 217, 198, 0.48);
   background: rgba(20, 54, 59, 0.9);
+}
+
+.feature-email__domain-card {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(80, 217, 198, 0.28);
+  background: rgba(10, 25, 28, 0.62);
+}
+
+.feature-email__domain-card p {
+  margin: 0;
+  color: var(--app-text-secondary);
+  font-size: 0.76rem;
 }
 
 .feature-email__panel {

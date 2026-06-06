@@ -174,6 +174,9 @@ _CONFIG_SET_ENV_MAP = {
     "email_reply_to": "EMAIL_REPLY_TO",
     "email_api_base": "EMAIL_API_BASE",
     "email_api_key": "EMAIL_API_KEY",
+    "email_domain": "EMAIL_DOMAIN",
+    "plunk_project_id": "PLUNK_PROJECT_ID",
+    "plunk_secret_key": "PLUNK_SECRET_KEY",
     "email_address": "EMAIL_ADDRESS",
     "email_token": "EMAIL_TOKEN",
     "smtp_host": "SMTP_HOST",
@@ -184,6 +187,8 @@ _CONFIG_SET_ENV_MAP = {
     "embed_api_key": "EMBED_API_KEY",
     "embed_api_base": "EMBED_API_BASE",
     "embed_model": "EMBED_MODEL",
+    "apify_api_key": "APIFY_API_KEY",
+    "exa_api_key": "EXA_API_KEY",
     "jina_api_key": "JINA_API_KEY",
     "bocha_api_key": "BOCHA_API_KEY",
     "serper_api_key": "SERPER_API_KEY",
@@ -1949,6 +1954,12 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
         register_email_handlers(channel)
     except Exception as _email_exc:  # noqa: BLE001
         logger.exception("[email] failed to register handlers: %s", _email_exc)
+    # Lead Gen - scraper-backed prospect discovery workflows
+    try:
+        from jiuwenclaw.pi_agent.lead_gen import register_lead_gen_handlers
+        register_lead_gen_handlers(channel)
+    except Exception as _lead_gen_exc:  # noqa: BLE001
+        logger.exception("[lead_gen] failed to register handlers: %s", _lead_gen_exc)
     channel.register_method("channel.feishu.get_conf", _channel_feishu_get_conf)
     channel.register_method("channel.feishu.set_conf", _channel_feishu_set_conf)
     channel.register_method("channel.xiaoyi.get_conf", _channel_xiaoyi_get_conf)
