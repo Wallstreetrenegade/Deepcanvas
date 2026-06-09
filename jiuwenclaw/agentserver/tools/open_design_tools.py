@@ -3,8 +3,8 @@
 
 Open Design exposes a stdio MCP server (``od mcp``) and can also be reached
 through SSE / streamable HTTP if a deployment provides a remote endpoint.
-This helper keeps the integration optional and env-driven so the rest of the
-app remains unchanged unless the connector is explicitly enabled.
+This helper keeps the integration env-driven while defaulting to enabled in
+normal runtime, and only disabling when explicitly turned off.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def build_open_design_mcp_config() -> McpServerConfig | None:
     - OPEN_DESIGN_MCP_COMMAND / OPEN_DESIGN_MCP_ARGS: stdio command override
     """
     flag = (os.getenv("OPEN_DESIGN_MCP_ENABLED") or "").strip().lower()
-    if flag not in {"1", "true", "yes", "on"}:
+    if flag in {"0", "false", "no", "off"}:
         return None
 
     server_id = (os.getenv("OPEN_DESIGN_MCP_SERVER_ID") or _OPEN_DESIGN_DEFAULT_ID).strip()

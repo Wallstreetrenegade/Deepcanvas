@@ -104,13 +104,13 @@ def main() -> None:
             [python, "-m", "jiuwenclaw.app"],
             repo_root,
         )
-        if _is_env_truthy("PLUNK_AUTOSTART", default=False) and plunk_dir.exists():
+        if _is_env_truthy("PLUNK_AUTOSTART", default=True) and plunk_dir.exists():
             processes["plunk"] = _start_process(
                 "plunk",
                 ["npm", "run", "mail:dev"],
                 repo_root,
             )
-        if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=False) and open_design_dir.exists():
+        if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=True) and open_design_dir.exists():
             processes["open-design-daemon"] = _start_process(
                 "open-design-daemon",
                 ["pnpm", "exec", "od", "daemon"],

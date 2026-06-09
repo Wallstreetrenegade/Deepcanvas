@@ -69,9 +69,9 @@ def _is_env_truthy(name: str, default: bool = False) -> bool:
 
 def _build_optional_sidecars() -> list[tuple[str, list[str], Path]]:
     commands: list[tuple[str, list[str], Path]] = []
-    if _is_env_truthy("PLUNK_AUTOSTART", default=False) and PLUNK_DIR.exists():
+    if _is_env_truthy("PLUNK_AUTOSTART", default=True) and PLUNK_DIR.exists():
         commands.append(("plunk", ["npm", "run", "mail:dev"], PACKAGE_DIR.parent))
-    if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=False) and OPEN_DESIGN_DIR.exists():
+    if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=True) and OPEN_DESIGN_DIR.exists():
         commands.append(
             (
                 "open-design-daemon",

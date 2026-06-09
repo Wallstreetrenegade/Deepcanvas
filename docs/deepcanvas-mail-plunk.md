@@ -65,7 +65,6 @@ existing main-agent tool path.
 ### Env flags
 
 ```env
-OPEN_DESIGN_MCP_ENABLED=1
 # Optional transport override: stdio|sse|streamable-http
 OPEN_DESIGN_MCP_CLIENT_TYPE=stdio
 ```
@@ -75,7 +74,7 @@ For stdio mode, default command resolution is:
 1. Local repo binary: `node packages/open-design/apps/daemon/bin/od.mjs mcp`
 2. Fallback: `od mcp` from PATH
 
-### Optional sidecar auto-start
+### Sidecar auto-start
 
 Deep Canvas startup now supports env-gated sidecar processes:
 
@@ -84,7 +83,7 @@ PLUNK_AUTOSTART=1
 OPEN_DESIGN_DAEMON_AUTOSTART=1
 ```
 
-- `PLUNK_AUTOSTART=1` starts `npm run mail:dev`
-- `OPEN_DESIGN_DAEMON_AUTOSTART=1` starts `pnpm exec od daemon`
-
-Both are optional and disabled by default to avoid changing existing runtime behavior.
+- Defaults are now ON when repos exist.
+- Set `PLUNK_AUTOSTART=0` to disable Plunk auto-start.
+- Set `OPEN_DESIGN_DAEMON_AUTOSTART=0` to disable Open Design daemon auto-start.
+- Set `OPEN_DESIGN_MCP_ENABLED=0` to disable Open Design MCP registration.
