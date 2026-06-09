@@ -1,4 +1,4 @@
-﻿# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 
 """JiuWenClaw Deep Adapter - 基于 openjiuwen DeepAgent 的适配器实现.
 
@@ -1495,6 +1495,21 @@ class JiuWenClawDeepAdapter:
             )
         except Exception as exc:
             logger.warning("[JiuWenClawDeepAdapter] feature tools registration failed: %s", exc)
+
+        try:
+            from jiuwenclaw.agentserver.tools.open_design_feature_tools import get_open_design_feature_tools
+            _od_tool_names: list[str] = []
+            for _odt in get_open_design_feature_tools():
+                if not Runner.resource_mgr.get_tool(_odt.card.id):
+                    Runner.resource_mgr.add_tool(_odt)
+                tool_cards.append(_odt.card)
+                _od_tool_names.append(_odt.card.name)
+            logger.info(
+                "[JiuWenClawDeepAdapter] open design bridge tools registered: tools=%s",
+                _od_tool_names,
+            )
+        except Exception as exc:
+            logger.warning("[JiuWenClawDeepAdapter] open design bridge registration failed: %s", exc)
 
         return tool_cards
 
