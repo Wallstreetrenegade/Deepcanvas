@@ -1,59 +1,90 @@
-# Deep Canvas Mail with Plunk
+﻿# Deep Canvas Sidecars (Plunk + Open Design)
 
-Deep Canvas keeps the user-facing Email feature. Plunk runs behind it as the internal mail engine for sending, templates, campaigns, contacts, inbound activity, and domain verification.
+Deep Canvas Mail is built from the self-hosted Plunk source vendored in `packages/plunk`.
+The Email feature opens that internal mail app instead of using the temporary Deep Canvas
+composer wrapper.
 
-## Runtime Pieces
+## Local Development
 
-- `Deep Canvas`: app UI and feature RPCs.
-- `Plunk`: self-hosted mail platform.
-- `AWS SES`: outbound delivery and reputation layer.
-- `DNS`: SPF, DKIM, MAIL FROM, and inbound routing records from Plunk/SES.
-
-## Deep Canvas Config
-
-Set these in Configuration or the server environment:
-
-```env
-EMAIL_ENGINE=plunk
-EMAIL_API_BASE=https://mail-api.deepcanvas.ai
-EMAIL_API_KEY=sk_replace_with_plunk_secret_key
-EMAIL_FROM_ADDRESS=hello@deepcanvas.ai
-EMAIL_REPLY_TO=hello@deepcanvas.ai
-EMAIL_DOMAIN=deepcanvas.ai
-PLUNK_PROJECT_ID=replace_with_project_id_for_domain_sync
-```
-
-`PLUNK_SECRET_KEY` can be used instead of `EMAIL_API_KEY`.
-
-## Plunk VPS Setup
-
-Use the included compose file:
+Run Deep Canvas:
 
 ```bash
-cp docker/plunk.env.example /opt/deepcanvas/plunk/.env
-cp docker/plunk.compose.yml /opt/deepcanvas/plunk/docker-compose.yml
-cd /opt/deepcanvas/plunk
-docker compose --env-file .env up -d
+npm run dev
 ```
 
-Point these DNS records to the VPS:
+Run the Plunk dashboard:
 
-- `mail-api.deepcanvas.ai`
-- `mail.deepcanvas.ai`
-- `mail-www.deepcanvas.ai`
-- `mail-docs.deepcanvas.ai`
-- `smtp.deepcanvas.ai`
+```bash
+npm run mail:install
+npm run mail:dev
+```
 
-Put HTTPS in front of `PLUNK_HTTP_PORT` with Caddy, Nginx, Traefik, or the host panel proxy.
+Deep Canvas loads the Email feature from `http://localhost:3000` by default during local
+development. Override it with:
 
-## First Production Checklist
+```env
+VITE_PLUNK_WEB_URL=http://localhost:3000
+```
 
-- Create the Plunk admin account.
-- Create the Deep Canvas project in Plunk.
-- Add the sending domain.
-- Add the DNS records Plunk/SES returns.
-- Move SES out of sandbox.
-- Create a Plunk secret key and add it to Deep Canvas.
-- Set `EMAIL_RATE_LIMIT_PER_SECOND` to match SES quota.
-- Send a test email from the Email feature.
-- Create one template and one campaign from the Email feature.
+## Production Shape
+
+For production, serve the Plunk dashboard behind the same VPS and proxy it at `/mail`.
+Deep Canvas will use `/mail` by default outside localhost.
+
+Plunk still needs its own runtime services configured for production:
+
+- Postgres
+- Redis
+- ClickHouse
+- S3-compatible storage
+- SES or another mail delivery layer
+- DNS records for SPF, DKIM, MAIL FROM, and inbound routes
+
+## Source Customizations
+
+The Plunk dashboard sidebar is moved from the left side to the right side in:
+
+```text
+packages/plunk/apps/web/src/components/DashboardLayout.tsx
+```
+
+Keep Deep Canvas-specific Plunk changes small and isolated so we can still pull upstream
+Plunk fixes later.
+
+## Open Design MCP Integration
+
+Open Design is vendored in `packages/open-design` and can be attached to the main agent
+as an MCP server. Once enabled, App Builder can call Open Design MCP tools through the
+existing main-agent tool path.
+
+### MCP wiring (backend)
+
+- `jiuwenclaw/agentserver/tools/open_design_tools.py` builds MCP config from env.
+- `JiuWenClawDeepAdapter` registers the MCP server during create/reload.
+
+### Env flags
+
+```env
+OPEN_DESIGN_MCP_ENABLED=1
+# Optional transport override: stdio|sse|streamable-http
+OPEN_DESIGN_MCP_CLIENT_TYPE=stdio
+```
+
+For stdio mode, default command resolution is:
+
+1. Local repo binary: `node packages/open-design/apps/daemon/bin/od.mjs mcp`
+2. Fallback: `od mcp` from PATH
+
+### Optional sidecar auto-start
+
+Deep Canvas startup now supports env-gated sidecar processes:
+
+```env
+PLUNK_AUTOSTART=1
+OPEN_DESIGN_DAEMON_AUTOSTART=1
+```
+
+- `PLUNK_AUTOSTART=1` starts `npm run mail:dev`
+- `OPEN_DESIGN_DAEMON_AUTOSTART=1` starts `pnpm exec od daemon`
+
+Both are optional and disabled by default to avoid changing existing runtime behavior.

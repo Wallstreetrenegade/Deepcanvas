@@ -1,9 +1,15 @@
-{
+﻿{
   "name": "deepcanvas-ai-claw",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "cd jiuwenclaw/web && npm run dev",
+    "mail:install": "cd packages/plunk && yarn install",
+    "mail:dev": "cd packages/plunk && yarn workspace web dev",
+    "mail:build": "cd packages/plunk && yarn workspace web build",
+    "open-design:install": "cd packages/open-design && pnpm install",
+    "open-design:daemon": "cd packages/open-design && pnpm exec od daemon",
+    "open-design:mcp": "cd packages/open-design && pnpm exec od mcp",
     "build": "cd jiuwenclaw/web && npm run build",
     "deploy": "vercel --prod"
   },

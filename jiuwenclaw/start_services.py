@@ -1,10 +1,11 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+﻿# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 
 """Launch JiuwenClaw frontend/backend services with one command."""
 
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import subprocess
 import sys
@@ -13,9 +14,8 @@ from pathlib import Path
 
 from jiuwenclaw.utils import get_root_dir, is_package_installation
 
-# Runtime data root:
-# - source mode: repository root
-# - package mode: ~/.jiuwenclaw
+# Runtime data root used for writable state and config.
+# In source mode this may still point at ~/.jiuwenclaw when the workspace has been initialized.
 DATA_ROOT = get_root_dir()
 
 # Package source root:
@@ -25,19 +25,28 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 
 # Frontend dev project root (contains package.json)
 WEB_DEV_DIR = PACKAGE_DIR / "web"
+PLUNK_DIR = PACKAGE_DIR.parent / "packages" / "plunk"
+OPEN_DESIGN_DIR = PACKAGE_DIR.parent / "packages" / "open-design"
+
+
+def _launch_cwd() -> Path:
+    if is_package_installation():
+        return DATA_ROOT
+    return PACKAGE_DIR.parent
 
 
 def _build_commands(mode: str) -> list[tuple[str, list[str], Path]]:
     python_cmd = sys.executable
+    launch_cwd = _launch_cwd()
     commands: list[tuple[str, list[str], Path]] = []
 
     # Always launch package modules so source/package layouts behave the same.
     if mode in ("all", "app", "dev"):
-        commands.append(("app", [python_cmd, "-m", "jiuwenclaw.app"], DATA_ROOT))
+        commands.append(("app", [python_cmd, "-m", "jiuwenclaw.app"], launch_cwd))
     if mode == "all":
-        commands.append(("web", [python_cmd, "-m", "jiuwenclaw.app_web"], DATA_ROOT))
+        commands.append(("web", [python_cmd, "-m", "jiuwenclaw.app_web"], launch_cwd))
     elif mode == "web":
-        commands.append(("web", [python_cmd, "-m", "jiuwenclaw.app_web"], DATA_ROOT))
+        commands.append(("web", [python_cmd, "-m", "jiuwenclaw.app_web"], launch_cwd))
     elif mode == "dev":
         package_json = WEB_DEV_DIR / "package.json"
         if is_package_installation() and not package_json.exists():
@@ -46,6 +55,30 @@ def _build_commands(mode: str) -> list[tuple[str, list[str], Path]]:
                 "please run app/web mode, or use source checkout for frontend dev."
             )
         commands.append(("web-dev", ["npm", "run", "dev"], WEB_DEV_DIR))
+    if mode in ("all", "app", "dev"):
+        commands.extend(_build_optional_sidecars())
+    return commands
+
+
+def _is_env_truthy(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _build_optional_sidecars() -> list[tuple[str, list[str], Path]]:
+    commands: list[tuple[str, list[str], Path]] = []
+    if _is_env_truthy("PLUNK_AUTOSTART", default=False) and PLUNK_DIR.exists():
+        commands.append(("plunk", ["npm", "run", "mail:dev"], PACKAGE_DIR.parent))
+    if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=False) and OPEN_DESIGN_DIR.exists():
+        commands.append(
+            (
+                "open-design-daemon",
+                ["pnpm", "exec", "od", "daemon"],
+                OPEN_DESIGN_DIR,
+            )
+        )
     return commands
 
 
@@ -54,7 +87,7 @@ def _start_process(name: str, cmd: list[str], cwd: Path) -> subprocess.Popen[byt
     # Windows: npm/npx resolve to .cmd shims; CreateProcess cannot spawn .cmd without a shell.
     if sys.platform == "win32" and cmd:
         first = cmd[0].lower()
-        if first in ("npm", "npx"):
+        if first in ("npm", "npx", "pnpm", "yarn"):
             cmd = ["cmd", "/c", *cmd]
     return subprocess.Popen(cmd, cwd=str(cwd))
 

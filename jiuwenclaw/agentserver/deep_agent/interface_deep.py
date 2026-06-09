@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+﻿# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 
 """JiuWenClaw Deep Adapter - 基于 openjiuwen DeepAgent 的适配器实现.
 
@@ -19,7 +19,10 @@ from typing import Any, AsyncIterator, Callable, List, Tuple
 from dotenv import load_dotenv
 from openjiuwen.core.context_engine.schema.config import ContextEngineConfig
 from openjiuwen.core.foundation.llm import ModelRequestConfig, ModelClientConfig, Model
-from openjiuwen.core.foundation.store.base_embedding import EmbeddingConfig
+try:
+    from openjiuwen.core.foundation.store.base_embedding import EmbeddingConfig
+except ImportError:
+    from openjiuwen.core.retrieval.common.config import EmbeddingConfig
 from openjiuwen.core.foundation.tool import ToolCard
 from openjiuwen.core.runner import Runner
 from openjiuwen.core.session.checkpointer import CheckpointerFactory
@@ -33,11 +36,16 @@ from openjiuwen.core.sys_operation import (
     LocalWorkConfig,
     SandboxGatewayConfig,
 )
-from openjiuwen.core.sys_operation.config import (
-    SandboxIsolationConfig,
-    PreDeployLauncherConfig,
-    ContainerScope
-)
+try:
+    from openjiuwen.core.sys_operation.config import (
+        SandboxIsolationConfig,
+        PreDeployLauncherConfig,
+        ContainerScope,
+    )
+except ImportError:  # Compatibility with installed openjiuwen builds that only support local sys-op config.
+    SandboxIsolationConfig = None  # type: ignore[assignment]
+    PreDeployLauncherConfig = None  # type: ignore[assignment]
+    ContainerScope = None  # type: ignore[assignment]
 from openjiuwen.harness import (
     AudioModelConfig,
     DeepAgent,
@@ -126,6 +134,7 @@ from jiuwenclaw.agentserver.tools.multimodal_config import (
     apply_video_model_config_from_yaml,
     apply_vision_model_config_from_yaml,
 )
+from jiuwenclaw.agentserver.tools.open_design_tools import register_open_design_mcp_server
 from jiuwenclaw.agentserver.tools.video_tools import video_understanding
 
 from jiuwenclaw.agentserver.tools import SendFileToolkit, SkillToolkit
@@ -929,10 +938,16 @@ class JiuWenClawDeepAdapter:
         try:
             sandbox_url = _sandbox_config.get("url", None)
             sandbox_type = _sandbox_config.get("type", None)
-            if sandbox_url and sandbox_type:
+            if (
+                sandbox_url
+                and sandbox_type
+                and PreDeployLauncherConfig is not None
+                and SandboxIsolationConfig is not None
+                and ContainerScope is not None
+            ):
                 gateway_config = SandboxGatewayConfig(
-                isolation=SandboxIsolationConfig(container_scope=ContainerScope.SYSTEM),
-                launcher_config=PreDeployLauncherConfig(
+                    isolation=SandboxIsolationConfig(container_scope=ContainerScope.SYSTEM),
+                    launcher_config=PreDeployLauncherConfig(
                         base_url=sandbox_url,
                         sandbox_type=sandbox_type,
                         idle_ttl_seconds=600,
@@ -943,6 +958,15 @@ class JiuWenClawDeepAdapter:
                     mode=OperationMode.SANDBOX,
                     work_config=LocalWorkConfig(shell_allowlist=None),
                     gateway_config=gateway_config,
+                )
+            elif sandbox_url and sandbox_type:
+                logger.warning(
+                    "[JiuWenClawDeepAdapter] sandbox config detected but current openjiuwen build "
+                    "does not support sandbox sys_operation config; falling back to local mode"
+                )
+                sysop_card = SysOperationCard(
+                    mode=OperationMode.LOCAL,
+                    work_config=LocalWorkConfig(shell_allowlist=None),
                 )
             else:
                 sysop_card = SysOperationCard(
@@ -1564,6 +1588,10 @@ class JiuWenClawDeepAdapter:
         logger.info("[JiuWenClawDeepAdapter] 初始化完成: agent_name=%s", self._agent_name)
 
         # 动态加载用户自定义的 Rail 扩展
+        try:
+            await register_open_design_mcp_server(self._instance, tag=f"agent.{self._agent_name}")
+        except Exception as exc:
+            logger.warning("[JiuWenClawDeepAdapter] Open Design MCP registration skipped: %s", exc)
         await self.load_user_rails()
 
     async def load_user_rails(self) -> None:
@@ -1655,6 +1683,10 @@ class JiuWenClawDeepAdapter:
             rails=rails_list,
         )
         self._instance.configure(deep_cfg)
+        try:
+            await register_open_design_mcp_server(self._instance, tag=f"agent.{self._agent_name}")
+        except Exception as exc:
+            logger.warning("[JiuWenClawDeepAdapter] Open Design MCP reload registration skipped: %s", exc)
 
         logger.info("[JiuWenClawDeepAdapter] 配置已热更新（configure），未重启进程")
 

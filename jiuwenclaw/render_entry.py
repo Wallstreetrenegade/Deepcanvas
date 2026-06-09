@@ -1,4 +1,4 @@
-"""Render entrypoint for running Deep Canvas as a single public service.
+﻿"""Render entrypoint for running Deep Canvas as a single public service.
 
 This starts:
 - the internal JiuwenClaw app stack (AgentServer + Gateway/WebSocket)
@@ -16,12 +16,20 @@ import signal
 import subprocess
 import sys
 import time
+import shutil
 from pathlib import Path
 
 
 def _start_process(name: str, cmd: list[str], cwd: Path) -> subprocess.Popen[bytes]:
     print(f"[render-entry] starting {name}: {' '.join(cmd)} (cwd={cwd})", flush=True)
     return subprocess.Popen(cmd, cwd=str(cwd))
+
+
+def _is_env_truthy(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _terminate_processes(processes: dict[str, subprocess.Popen[bytes]]) -> None:
@@ -42,9 +50,27 @@ def _terminate_processes(processes: dict[str, subprocess.Popen[bytes]]) -> None:
             proc.kill()
 
 
+def _ensure_workspace_dist(repo_root: Path) -> None:
+    """Copy the built frontend bundle into the mounted workspace if needed."""
+    source_dist = repo_root / "jiuwenclaw" / "web" / "dist"
+    if not source_dist.exists():
+        print(f"[render-entry] frontend dist missing at {source_dist}", flush=True)
+        return
+
+    workspace_root = Path(os.getenv("HOME", "/var/data")) / ".jiuwenclaw"
+    target_dist = workspace_root / "web" / "dist"
+    if target_dist.exists():
+        return
+
+    target_dist.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[render-entry] staging frontend dist to {target_dist}", flush=True)
+    shutil.copytree(source_dist, target_dist, dirs_exist_ok=True)
+
+
 def main() -> None:
     python = sys.executable
     repo_root = Path(__file__).resolve().parent.parent
+    _ensure_workspace_dist(repo_root)
 
     public_port = os.getenv("PORT", "10000")
     internal_web_host = os.getenv("WEB_HOST", "127.0.0.1")
@@ -70,11 +96,26 @@ def main() -> None:
     signal.signal(signal.SIGINT, _shutdown)
 
     try:
+        plunk_dir = repo_root / "packages" / "plunk"
+        open_design_dir = repo_root / "packages" / "open-design"
+
         processes["app"] = _start_process(
             "app",
             [python, "-m", "jiuwenclaw.app"],
             repo_root,
         )
+        if _is_env_truthy("PLUNK_AUTOSTART", default=False) and plunk_dir.exists():
+            processes["plunk"] = _start_process(
+                "plunk",
+                ["npm", "run", "mail:dev"],
+                repo_root,
+            )
+        if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=False) and open_design_dir.exists():
+            processes["open-design-daemon"] = _start_process(
+                "open-design-daemon",
+                ["pnpm", "exec", "od", "daemon"],
+                open_design_dir,
+            )
         time.sleep(1.0)
         processes["web"] = _start_process(
             "web",
