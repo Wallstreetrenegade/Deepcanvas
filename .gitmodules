@@ -1,0 +1,4 @@
+[submodule "packages/open-design"]
+	path = packages/open-design
+	url = https://github.com/Wallstreetrenegade/opendesign.git
+	branch = main

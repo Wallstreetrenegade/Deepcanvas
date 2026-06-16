@@ -1,0 +1,262 @@
+version: '3.8'
+
+# Plunk Self-Hosting Docker Compose
+# This setup runs all Plunk services in a single container with nginx reverse proxy
+#
+# Uses subdomain-based routing:
+#   - api.example.com -> API Server
+#   - app.example.com -> Web Dashboard
+#   - www.example.com -> Landing Page
+#   - docs.example.com -> Documentation
+#   - smtp.example.com -> SMTP Relay Server (ports 465, 587)
+#
+# Usage:
+#   1. Copy .env.self-host.example to .env and configure
+#   2. Set your domain names (API_DOMAIN, DASHBOARD_DOMAIN, SMTP_DOMAIN, etc.)
+#   3. Run: docker compose up -d
+#   4. Access your instance at the configured domains
+#
+# SMTP Server:
+#   - Supports TLS certificates via:
+#     1. Traefik acme.json (mount to /certs/acme.json, requires SMTP_DOMAIN)
+#     2. PEM files (mount privkey.pem and fullchain.pem to /certs/)
+#   - Runs without TLS if no certificates are mounted
+
+services:
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: plunk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: plunk
+      POSTGRES_USER: plunk
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U plunk" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - plunk
+
+  redis:
+    image: redis:7-alpine
+    container_name: plunk-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - plunk
+
+  minio:
+    image: minio/minio:latest
+    container_name: plunk-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-plunk}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-plunkminiopass}
+    volumes:
+      - minio_data:/data
+    ports:
+      # Expose Minio API (for S3 operations) and Console (for web UI)
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - plunk
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: plunk-ntfy
+    restart: unless-stopped
+    command: serve
+    environment:
+      - TZ=UTC
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+      - ntfy_etc:/etc/ntfy
+    ports:
+      # Expose ntfy web UI and API
+      - "${NTFY_PORT:-8080}:80"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - plunk
+
+  # ============================================
+  # Plunk Application
+  # ============================================
+
+  plunk:
+    image: ghcr.io/useplunk/plunk:latest
+    container_name: plunk
+    restart: unless-stopped
+    environment:
+      # Service mode
+      SERVICE: all
+      NODE_ENV: production
+
+      # Database
+      DATABASE_URL: postgresql://plunk:${DB_PASSWORD:-changeme123}@postgres:5432/plunk
+      DIRECT_DATABASE_URL: postgresql://plunk:${DB_PASSWORD:-changeme123}@postgres:5432/plunk
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+
+      # Security
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Nginx configuration
+      NGINX_PORT: ${NGINX_PORT:-80}
+
+      # Domain configuration (subdomain-based routing)
+      # Each service gets its own subdomain
+      API_DOMAIN: ${API_DOMAIN:-api.localhost}
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN:-app.localhost}
+      LANDING_DOMAIN: ${LANDING_DOMAIN:-www.localhost}
+      WIKI_DOMAIN: ${WIKI_DOMAIN:-docs.localhost}
+
+      # Protocol configuration (set to true for HTTPS in production)
+      USE_HTTPS: ${USE_HTTPS:-false}
+
+      # Application URLs (auto-configured by setup-nginx.sh from domains above)
+      # You can override these if needed
+      API_URI: ${API_URI:-}
+      DASHBOARD_URI: ${DASHBOARD_URI:-}
+      LANDING_URI: ${LANDING_URI:-}
+      WIKI_URI: ${WIKI_URI:-}
+
+      # AWS SES (for sending emails)
+      AWS_SES_REGION: ${AWS_SES_REGION}
+      AWS_SES_ACCESS_KEY_ID: ${AWS_SES_ACCESS_KEY_ID}
+      AWS_SES_SECRET_ACCESS_KEY: ${AWS_SES_SECRET_ACCESS_KEY}
+      SES_CONFIGURATION_SET: ${SES_CONFIGURATION_SET}
+      SES_CONFIGURATION_SET_NO_TRACKING: ${SES_CONFIGURATION_SET_NO_TRACKING:-}
+
+      # Custom MAIL FROM subdomain (defaults to 'plunk'; override when
+      # plunk.<your-domain> is already used for something else, e.g. a CDN)
+      MAIL_FROM_SUBDOMAIN: ${MAIL_FROM_SUBDOMAIN:-}
+
+      # Optional: OAuth
+      GITHUB_OAUTH_CLIENT: ${GITHUB_OAUTH_CLIENT:-}
+      GITHUB_OAUTH_SECRET: ${GITHUB_OAUTH_SECRET:-}
+      GOOGLE_OAUTH_CLIENT: ${GOOGLE_OAUTH_CLIENT:-}
+      GOOGLE_OAUTH_SECRET: ${GOOGLE_OAUTH_SECRET:-}
+
+      # Optional: Stripe
+      STRIPE_SK: ${STRIPE_SK:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ONBOARDING: ${STRIPE_PRICE_ONBOARDING:-}
+      STRIPE_PRICE_EMAIL_USAGE: ${STRIPE_PRICE_EMAIL_USAGE:-}
+      STRIPE_METER_EVENT_NAME: ${STRIPE_METER_EVENT_NAME:-emails}
+
+      # S3-compatible storage (Minio)
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-plunk}
+      S3_ACCESS_KEY_SECRET: ${S3_ACCESS_KEY_SECRET:-plunkminiopass}
+      S3_BUCKET: ${S3_BUCKET:-uploads}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000/uploads}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+
+      # Notifications (ntfy.sh)
+      NTFY_URL: ${NTFY_URL:-http://ntfy/plunk-notifications}
+
+      # SMTP Server (for sending emails via SMTP)
+      # SMTP_DOMAIN is required to select the correct certificate from Traefik acme.json
+      # If using PEM files, SMTP_DOMAIN is optional
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-}
+
+      # Platform emails
+      PLUNK_API_KEY: ${PLUNK_API_KEY:-}
+      PLUNK_FROM_ADDRESS: ${PLUNK_FROM_ADDRESS:-}
+
+      # Security
+      AUTO_PROJECT_DISABLE: ${AUTO_PROJECT_DISABLE:-false}
+
+      # Self-hosting user management (documented in .env.self-host.example
+      # and read by apps/api/src/app/constants.ts at import time)
+      DISABLE_SIGNUPS: ${DISABLE_SIGNUPS:-false}
+
+      # Explicit SES sending rate (avoid silent fallback to 14/sec when
+      # ses:GetSendQuota is denied or transiently fails at worker startup)
+      EMAIL_RATE_LIMIT_PER_SECOND: ${EMAIL_RATE_LIMIT_PER_SECOND:-}
+
+    volumes:
+      # Persistent storage for application data
+      - plunk_data:/app/data
+      # Optional: Mount certificates for SMTP TLS
+      # For Traefik acme.json:
+      # - /path/to/acme.json:/certs/acme.json:ro
+      # For PEM files:
+      # - /path/to/privkey.pem:/certs/privkey.pem:ro
+      # - /path/to/fullchain.pem:/certs/fullchain.pem:ro
+
+    ports:
+      # SMTP ports (for email relay)
+      - "${PORT_SECURE:-465}:465"    # SMTPS (implicit TLS)
+      - "${PORT_SUBMISSION:-587}:587"    # SMTP Submission (STARTTLS)
+      # Optional: Expose individual service ports for debugging
+      # - "8080:8080"  # API
+      # - "3000:3000"  # Web
+      # - "4000:4000"  # Landing
+      # - "1000:1000"  # Wiki
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ntfy:
+        condition: service_healthy
+
+    healthcheck:
+      # Check nginx is running and responding
+      test: [ "CMD", "curl", "-f", "http://localhost:80/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    networks:
+      - plunk
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  plunk_data:
+    driver: local
+  ntfy_cache:
+    driver: local
+  ntfy_etc:
+    driver: local
+
+networks:
+  plunk:
+    driver: bridge

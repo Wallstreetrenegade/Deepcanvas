@@ -1,0 +1,10 @@
+{
+  "printWidth": 120,
+  "quoteProps": "consistent",
+  "arrowParens": "avoid",
+  "singleQuote": true,
+  "bracketSpacing": false,
+  "useTabs": false,
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true
+}

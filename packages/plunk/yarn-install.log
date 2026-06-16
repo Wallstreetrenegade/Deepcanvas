@@ -1,0 +1,28 @@
+➤ YN0000: · Yarn 4.9.1
+➤ YN0000: ┌ Project validation
+➤ YN0057: │ landing: Resolutions field will be ignored
+➤ YN0057: │ web: Resolutions field will be ignored
+➤ YN0000: └ Completed
+➤ YN0000: ┌ Resolution step
+➤ YN0000: └ Completed in 0s 242ms
+➤ YN0000: ┌ Post-resolution validation
+➤ YN0060: │ @tiptap/core is listed by your project with version 3.13.0 (pe3358), which doesn't satisfy what @tiptap/extension-underline and other dependencies request (^3.14.0).
+➤ YN0060: │ date-fns is listed by your project with version 4.1.0 (p6f492), which doesn't satisfy what react-day-picker requests (^2.28.0 || ^3.0.0).
+➤ YN0060: │ date-fns is listed by your project with version 4.1.0 (p807b1), which doesn't satisfy what react-day-picker requests (^2.28.0 || ^3.0.0).
+➤ YN0060: │ fumadocs-core is listed by your project with version 16.0.8 (p7370b), which doesn't satisfy what fumadocs-openapi and other dependencies request (^16.2.0).
+➤ YN0060: │ fumadocs-ui is listed by your project with version 16.0.8 (pf8cf1), which doesn't satisfy what fumadocs-openapi requests (^16.2.0).
+➤ YN0060: │ react is listed by your project with version 19.2.3 (p1c985), which doesn't satisfy what react-day-picker (via @plunk/ui) and other dependencies request (but they have non-overlapping ranges!).
+➤ YN0060: │ react is listed by your project with version 19.2.3 (pfdfa9), which doesn't satisfy what react-day-picker (via @plunk/ui) and other dependencies request (but they have non-overlapping ranges!).
+➤ YN0002: │ @plunk/email@workspace:packages/email doesn't provide @react-email/text (p8f598), requested by @react-email/tailwind.
+➤ YN0002: │ @plunk/ui@workspace:packages/ui [13444] doesn't provide react-is (p9379c), requested by recharts.
+➤ YN0002: │ @plunk/ui@workspace:packages/ui doesn't provide react (pba0ed), requested by @dnd-kit/core and other dependencies.
+➤ YN0002: │ @plunk/ui@workspace:packages/ui doesn't provide react-dom (pc24e6), requested by @dnd-kit/core and other dependencies.
+➤ YN0002: │ @plunk/ui@workspace:packages/ui doesn't provide react-is (peaaaa), requested by recharts.
+➤ YN0002: │ api@workspace:apps/api doesn't provide react (p1ead5), requested by @react-email/render.
+➤ YN0002: │ api@workspace:apps/api doesn't provide react-dom (p1527b), requested by @react-email/render.
+➤ YN0002: │ landing@workspace:apps/landing doesn't provide @tiptap/extensions (p8660e), requested by @tiptap/extension-placeholder.
+➤ YN0002: │ web@workspace:apps/web doesn't provide @tiptap/extensions (p11fe1), requested by @tiptap/extension-placeholder.
+➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+➤ YN0086: │ Some peer dependencies are incorrectly met by dependencies; run yarn explain peer-requirements for details.
+➤ YN0000: └ Completed
+➤ YN0000: ┌ Fetch step

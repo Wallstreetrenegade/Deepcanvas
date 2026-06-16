@@ -1,0 +1,383 @@
+{
+  "version": "5.0.0",
+  "id": "ly.img.templates",
+  "assets": [
+    {
+      "id": "ly.img.templates.blank.blank_1",
+      "groups": [],
+      "label": {
+        "en": "Blank Document",
+        "de": "Leer Dokument"
+      },
+      "tags": {
+        "en": [
+          "blank",
+          "empty",
+          "white",
+          "template"
+        ],
+        "de": [
+          "leer",
+          "weiß",
+          "Vorlage"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_blank_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_blank_1.png",
+        "filename": "blank_1.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.social.instagram_photo_1",
+      "groups": [],
+      "label": {
+        "en": "Instagram photo",
+        "de": "Instagram Foto"
+      },
+      "tags": {
+        "en": [
+          "instagram",
+          "photo",
+          "template",
+          "square",
+          "social media"
+        ],
+        "de": [
+          "Instagram",
+          "Foto",
+          "Vorlage",
+          "Quadratisch",
+          "Soziale Medien"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_instagram_photo_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_instagram_photo_1.jpg",
+        "filename": "instagram_photo_1.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.social.instagram_story_1",
+      "groups": [],
+      "label": {
+        "en": "Instagram story",
+        "de": "Instagram Story"
+      },
+      "tags": {
+        "en": [
+          "instagram",
+          "story",
+          "template",
+          "social media"
+        ],
+        "de": [
+          "Instagram",
+          "Story",
+          "Vorlage",
+          "Soziale Medien"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_instagram_story_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_instagram_story_1.jpg",
+        "filename": "instagram_story_1.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.print.business_card_1",
+      "groups": [],
+      "label": {
+        "en": "Business card",
+        "de": "Visitenkarte"
+      },
+      "tags": {
+        "en": [
+          "business",
+          "card",
+          "template",
+          "print"
+        ],
+        "de": [
+          "Visitenkarte",
+          "Geschäft",
+          "Vorlage",
+          "Druck"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_business_card_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_business_card_1.jpg",
+        "filename": "business_card_1.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.print.collage_1",
+      "groups": [],
+      "label": {
+        "en": "Collage",
+        "de": "Collage"
+      },
+      "tags": {
+        "en": [
+          "collage",
+          "template",
+          "print",
+          "digital"
+        ],
+        "de": [
+          "Collage",
+          "Vorlage",
+          "Druck",
+          "Digital"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_collage_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_collage_1.jpg",
+        "filename": "collage_1.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.print.postcard_1",
+      "groups": [],
+      "label": {
+        "en": "Postcard Design",
+        "de": "Postkarte Design"
+      },
+      "tags": {
+        "en": [
+          "postcard",
+          "design",
+          "template",
+          "print"
+        ],
+        "de": [
+          "Postkarte",
+          "Design",
+          "Vorlage",
+          "Druck"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_postcard_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_postcard_1.jpg",
+        "filename": "postcard_1.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.print.postcard_2",
+      "groups": [],
+      "label": {
+        "en": "Postcard Tropical",
+        "de": "Postkarte Tropisch"
+      },
+      "tags": {
+        "en": [
+          "postcard",
+          "template",
+          "print"
+        ],
+        "de": [
+          "Postkarte",
+          "Vorlage",
+          "Druck"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_postcard_2.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_postcard_2.jpg",
+        "filename": "postcard_2.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.print.poster_1",
+      "groups": [],
+      "label": {
+        "en": "Poster",
+        "de": "Poster"
+      },
+      "tags": {
+        "en": [
+          "poster",
+          "template",
+          "print",
+          "digital"
+        ],
+        "de": [
+          "Poster",
+          "Vorlage",
+          "Druck",
+          "Digital"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_poster_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_poster_1.jpg",
+        "filename": "poster_1.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.presentation.presentation_1",
+      "groups": [],
+      "label": {
+        "en": "Presentation",
+        "de": "Präsentation"
+      },
+      "tags": {
+        "en": [
+          "presentation",
+          "template",
+          "slide",
+          "digital"
+        ],
+        "de": [
+          "Präsentation",
+          "Vorlage",
+          "Folie",
+          "Digital"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/cesdk_presentation_1.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/cesdk_presentation_1.jpg",
+        "filename": "presentation_4.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.video.milli_surf_school",
+      "groups": [],
+      "label": {
+        "en": "Milli Surf School",
+        "de": "Milli Surf Schule"
+      },
+      "tags": {
+        "en": [
+          "surf",
+          "school",
+          "summer",
+          "vacation",
+          "holiday"
+        ],
+        "de": [
+          "Surf",
+          "Schule",
+          "Sommer",
+          "Urlaub",
+          "Ferien"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/milli-surf-school.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/milli-surf-school.png",
+        "filename": "milli-surf-school.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.video.monthly_review",
+      "groups": [],
+      "label": {
+        "en": "Monthly Review",
+        "de": "Monatliche Übersicht"
+      },
+      "tags": {
+        "en": [
+          "Diary",
+          "Journal",
+          "Review",
+          "Monthly",
+          "Yearly",
+          "Memories"
+        ],
+        "de": [
+          "Tagebuch",
+          "Journal",
+          "Übersicht",
+          "Monatlich",
+          "Jährlich",
+          "Erinnerungen"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/monthly-review.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/monthly-review.png",
+        "filename": "monthly-review.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.video.my_plants",
+      "groups": [],
+      "label": {
+        "en": "My Plants",
+        "de": "Meine Pflanzen"
+      },
+      "tags": {
+        "en": [
+          "Hobby",
+          "Gardening",
+          "Plants",
+          "Flowers",
+          "Nature",
+          "Garden"
+        ],
+        "de": [
+          "Hobby",
+          "Gärtnern",
+          "Pflanzen",
+          "Blumen",
+          "Natur",
+          "Garten"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/my-plants.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/my-plants.png",
+        "filename": "my-plants.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    },
+    {
+      "id": "ly.img.templates.video.red_dot",
+      "groups": [],
+      "label": {
+        "en": "Red Dot",
+        "de": "Roter Punkt"
+      },
+      "tags": {
+        "en": [
+          "Template",
+          "Commercial",
+          "Promo",
+          "Product",
+          "Sale",
+          "Discount"
+        ],
+        "de": [
+          "Vorlage",
+          "Werbung",
+          "Promo",
+          "Produkt",
+          "Verkauf",
+          "Rabatt"
+        ]
+      },
+      "meta": {
+        "uri": "{{base_url}}/ly.img.templates/templates/red-dot.scene",
+        "thumbUri": "{{base_url}}/ly.img.templates/thumbnails/red-dot.png",
+        "filename": "red-dot.scene",
+        "mimeType": "application/ubq-template-string"
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+    "pages": {
+      "unsubscribe": {
+        "title": "अनवस्थापित करें",
+        "description": "हम आपको छोड़ने के लिए खेद है। क्या आप यकीन है कि आप {email} से ईमेल प्राप्त करना चाहते हैं?",
+        "button": "अनवस्थापित करें",
+        "buttonLoading": "अनवस्थापित कर रहा है...",
+        "managePreferences": "प्राथमिकताओं को बदलें",
+        "successTitle": "आप अनवस्थापित हैं",
+        "successDescription": "{email} अनवस्थापित हो गया है। आपको हमारे से और कोई ईमेल नहीं मिलेगा।",
+        "changedMind": "आपके मन में क्या परिवर्तन है?",
+        "subscribeAgain": "पुनः सदस्यता लें"
+      },
+      "subscribe": {
+        "title": "सदस्यता लें",
+        "description": "क्या आप यकीन है कि आप {email} से ईमेल प्राप्त करना चाहते हैं?",
+        "button": "सदस्यता लें",
+        "buttonLoading": "सदस्यता ले रहा है...",
+        "successTitle": "आप सदस्यता ले गए हैं!",
+        "successDescription": "{email} अब हमारे से ईमेल प्राप्त करने के लिए सदस्यता ले गया है।"
+      },
+      "manage": {
+        "title": "प्राथमिकताओं को बदलें",
+        "description": "ईमेल प्राथमिकताओं को बदलें {email}",
+        "subscriptionLabel": "ईमेल सदस्यता",
+        "subscribedStatus": "आप अभी ईमेल प्राप्त करने के लिए सदस्यता ले गए हैं",
+        "unsubscribedStatus": "आप अभी ईमेल से अनवस्थापित हैं",
+        "subscribedSuccess": "सदस्यता ले गई!",
+        "unsubscribedSuccess": "अनवस्थापित गई!",
+        "unsubscribeCompletely": "पूरी तरह से अनवस्थापित करें",
+        "subscribeToEmails": "ईमेल सदस्यता लें",
+        "disclaimer": "यह पृष्ठ आपको ईमेल प्राथमिकताओं को बदलने देता है। आपकी सदस्यता स्थिति अभी ही अपडेट हो जाती है।"
+      },
+      "common": {
+        "loading": "लोड हो रहा है...",
+        "error": "त्रुटि"
+      }
+    },
+    "email": {
+      "footer": {
+        "unsubscribeText": "आपको यह ईमेल मिला है क्योंकि आपने {projectName} से ईमेल प्राप्त करने को सहमत हैं। यदि आप इस तरह के ईमेल प्राप्त करना चाहते हैं, तो कृपया",
+        "updatePreferences": "अपनी प्राथमिकताओं को बदलें"
+      }
+    }
+  }
+  

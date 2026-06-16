@@ -1,0 +1,520 @@
+---
+title: Error Codes
+description: API error codes and troubleshooting
+---
+
+## Overview
+
+The Plunk API uses standardized error responses to help you quickly identify and resolve issues. All errors include:
+
+- **Machine-readable error codes** for programmatic handling
+- **Human-readable messages** explaining what went wrong
+- **Helpful suggestions** to guide you toward a solution
+- **Request IDs** for debugging and support requests
+- **Field-level validation details** when applicable
+
+## HTTP Status Codes
+
+### 200 OK
+Request successful.
+
+### 201 Created
+Resource created successfully.
+
+### 400 Bad Request
+Invalid request format or parameters. Check the error details for specific issues.
+
+### 401 Unauthorized
+Authentication failed or missing. Verify your API key.
+
+### 402 Payment Required
+A billing limit has been reached or the operation requires a plan upgrade. Returned with `BILLING_LIMIT_EXCEEDED` and `UPGRADE_REQUIRED`.
+
+### 403 Forbidden
+Not authorized to access this resource. Check permissions or project status. Also returned when email verification is required (`EMAIL_VERIFICATION_REQUIRED`) or the project has been disabled (`PROJECT_DISABLED`).
+
+### 404 Not Found
+The requested resource does not exist. Verify the resource ID.
+
+### 409 Conflict
+The request conflicts with the current state of a resource — for example, creating a contact with an email that already exists, or updating to an email that's already taken. Returned with `CONFLICT`.
+
+### 422 Unprocessable Entity
+Request validation failed. Check the `errors` array for field-level details.
+
+### 429 Too Many Requests
+Rate limit exceeded. Wait before retrying or upgrade your plan.
+
+### 500 Internal Server Error
+An unexpected server error occurred. Contact support with the request ID.
+
+## Error Response Format
+
+All errors follow this standardized format:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed",
+    "statusCode": 422,
+    "requestId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "errors": [
+      {
+        "field": "email",
+        "message": "Invalid email",
+        "code": "invalid_string"
+      }
+    ],
+    "suggestion": "One or more fields have incorrect types. Check that strings are quoted, numbers are unquoted, and booleans are true/false."
+  },
+  "timestamp": "2025-11-30T10:30:00.000Z"
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `false` for errors |
+| `error.code` | string | Machine-readable error code (see below) |
+| `error.message` | string | Human-readable error description |
+| `error.statusCode` | number | HTTP status code |
+| `error.requestId` | string | Unique request identifier for debugging |
+| `error.errors` | array | Field-level validation errors (validation errors only) |
+| `error.details` | object | Additional context about the error (optional) |
+| `error.suggestion` | string | Helpful guidance for fixing the error (optional) |
+| `timestamp` | string | ISO 8601 timestamp when the error occurred |
+
+## Error Codes Reference
+
+All errors include a machine-readable `code` field for programmatic handling. Here are all possible error codes:
+
+### Authentication & Authorization
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `UNAUTHORIZED` | 401 | General authentication failure |
+| `INVALID_CREDENTIALS` | 401 | Login credentials are incorrect |
+| `MISSING_AUTH` | 401 | Authorization header is missing or malformed |
+| `INVALID_API_KEY` | 401 | API key is invalid or not found |
+| `FORBIDDEN` | 403 | Not allowed to perform this action |
+| `PROJECT_ACCESS_DENIED` | 403 | No access to this project |
+| `PROJECT_DISABLED` | 403 | Project has been disabled |
+| `EMAIL_VERIFICATION_REQUIRED` | 403 | The user's email address must be verified before this action |
+
+### Validation & Input Errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `BAD_REQUEST` | 400 | General request error |
+| `VALIDATION_ERROR` | 422 | Request validation failed (includes field errors) |
+| `INVALID_EMAIL` | 422 | Email format is invalid |
+| `INVALID_REQUEST_BODY` | 400 | Request body is malformed |
+| `MISSING_REQUIRED_FIELD` | 422 | Required field is missing |
+
+### Resource Errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `RESOURCE_NOT_FOUND` | 404 | Generic resource not found |
+| `CONTACT_NOT_FOUND` | 404 | Contact does not exist |
+| `TEMPLATE_NOT_FOUND` | 404 | Template does not exist |
+| `CAMPAIGN_NOT_FOUND` | 404 | Campaign does not exist |
+| `WORKFLOW_NOT_FOUND` | 404 | Workflow does not exist |
+| `CONFLICT` | 409 | Resource conflict (e.g., duplicate) |
+
+### Rate Limiting & Billing
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
+| `BILLING_LIMIT_EXCEEDED` | 402 | Billing limit reached |
+| `UPGRADE_REQUIRED` | 402 | Feature requires plan upgrade |
+
+### Server Errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |
+| `DATABASE_ERROR` | 500 | Database operation failed |
+| `EXTERNAL_SERVICE_ERROR` | 500 | External service unavailable |
+
+## Common Error Examples
+
+### Authentication Errors
+
+#### Invalid API Key
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_API_KEY",
+    "message": "Invalid secret API key. This endpoint requires a secret key (sk_*), not a public key.",
+    "statusCode": 401,
+    "requestId": "abc-123",
+    "suggestion": "Verify your API key is correct and starts with \"sk_\" for secret keys or \"pk_\" for public keys."
+  },
+  "timestamp": "2025-11-30T10:30:00.000Z"
+}
+```
+
+**Solution**: Check your API key is correct. Secret endpoints require keys starting with `sk_`, while tracking endpoints use `pk_` keys.
+
+#### Missing Authorization Header
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "MISSING_AUTH",
+    "message": "Authorization header is required",
+    "statusCode": 401,
+    "requestId": "abc-123",
+    "suggestion": "Include an Authorization header with format: \"Authorization: Bearer YOUR_API_KEY\""
+  },
+  "timestamp": "2025-11-30T10:30:00.000Z"
+}
+```
+
+**Solution**: Add the `Authorization` header with your API key in Bearer token format.
+
+### Validation Errors
+
+#### Invalid Email Format
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed",
+    "statusCode": 422,
+    "requestId": "abc-123",
+    "errors": [
+      {
+        "field": "email",
+        "message": "Invalid email",
+        "code": "invalid_string"
+      }
+    ],
+    "suggestion": "One or more fields have incorrect types. Check that strings are quoted, numbers are unquoted, and booleans are true/false."
+  },
+  "timestamp": "2025-11-30T10:30:00.000Z"
+}
+```
+
+**Solution**: Provide a valid email address. The `errors` array shows which fields failed validation.
+
+#### Missing Required Fields
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed",
+    "statusCode": 422,
+    "requestId": "abc-123",
+    "errors": [
+      {
+        "field": "event",
+        "message": "Required",
+        "code": "invalid_type"
+      },
+      {
+        "field": "email",
+        "message": "Required",
+        "code": "invalid_type"
+      }
+    ],
+    "suggestion": "Required fields are missing. Ensure all required fields are included in your request."
+  },
+  "timestamp": "2025-11-30T10:30:00.000Z"
+}
+```
+
+**Solution**: Include all required fields in your request body.
+
+### Resource Errors
+
+#### Template Not Found
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "TEMPLATE_NOT_FOUND",
+    "message": "Template with ID \"tpl_abc123\" was not found",
+    "statusCode": 404,
+    "requestId": "abc-123",
+    "details": {
+      "resource": "Template",
+      "id": "tpl_abc123"
+    },
+    "suggestion": "Ensure the template ID is correct and belongs to your project. You can list available templates via the API."
+  },
+  "timestamp": "2025-11-30T10:30:00.000Z"
+}
+```
+
+**Solution**: Verify the template ID exists and belongs to your project.
+
+### Rate Limiting
+
+#### Rate Limit Exceeded
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded. Please try again later.",
+    "statusCode": 429,
+    "requestId": "abc-123",
+    "suggestion": "You have exceeded the rate limit. Wait a moment before retrying, or upgrade your plan."
+  },
+  "timestamp": "2025-11-30T10:30:00.000Z"
+}
+```
+
+**Solution**: Implement exponential backoff and retry logic. Consider upgrading your plan for higher limits.
+
+## Success Response Format
+
+Successful API requests return a standardized format with `success: true` and a `data` object:
+
+```json
+{
+  "success": true,
+  "data": {
+    "contact": "cnt_abc123",
+    "event": "evt_xyz789",
+    "timestamp": "2025-11-30T10:30:00.000Z"
+  }
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` for successful requests |
+| `data` | object | Response data specific to the endpoint |
+
+## Handling Errors in Your Code
+
+### JavaScript/TypeScript Example
+
+```typescript
+try {
+  const response = await fetch('https://next-api.useplunk.com/v1/track', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${publicKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      event: 'purchase',
+      email: 'user@example.com'
+    })
+  });
+
+  const data = await response.json();
+
+  if (!data.success) {
+    // Handle error
+    console.error(`Error [${data.error.code}]:`, data.error.message);
+
+    // Show suggestion to user
+    if (data.error.suggestion) {
+      console.log('Suggestion:', data.error.suggestion);
+    }
+
+    // Log request ID for support
+    console.log('Request ID:', data.error.requestId);
+
+    // Handle specific error types
+    switch (data.error.code) {
+      case 'VALIDATION_ERROR':
+        // Show field-level errors
+        data.error.errors?.forEach(err => {
+          console.log(`${err.field}: ${err.message}`);
+        });
+        break;
+      case 'INVALID_API_KEY':
+        // Prompt user to check their API key
+        break;
+      case 'RATE_LIMIT_EXCEEDED':
+        // Implement retry with backoff
+        break;
+    }
+
+    return;
+  }
+
+  // Handle success
+  console.log('Event tracked:', data.data);
+} catch (error) {
+  console.error('Network error:', error);
+}
+```
+
+### Python Example
+
+```python
+import requests
+
+response = requests.post(
+    'https://next-api.useplunk.com/v1/track',
+    headers={
+        'Authorization': f'Bearer {public_key}',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'event': 'purchase',
+        'email': 'user@example.com'
+    }
+)
+
+data = response.json()
+
+if not data.get('success'):
+    error = data['error']
+    print(f"Error [{error['code']}]: {error['message']}")
+
+    # Show suggestion
+    if 'suggestion' in error:
+        print(f"Suggestion: {error['suggestion']}")
+
+    # Log request ID
+    print(f"Request ID: {error['requestId']}")
+
+    # Handle validation errors
+    if error['code'] == 'VALIDATION_ERROR':
+        for err in error.get('errors', []):
+            print(f"{err['field']}: {err['message']}")
+else:
+    print(f"Event tracked: {data['data']}")
+```
+
+## Troubleshooting Guide
+
+### Using Request IDs
+
+Every error includes a unique `requestId` that traces the request through our entire system. Request IDs enable:
+
+**For Developers:**
+- Every log entry includes the request ID
+- You can grep logs to find all entries for a specific request
+- Trace a request from API → Database → Queue → Worker
+
+**For Support:**
+1. Include the request ID in your message
+2. Describe what you were trying to do
+3. Share the full error response if possible
+
+**Example:** If you receive request ID `f47ac10b-58cc-4372-a567-0e02b2c3d479`, we can search our logs for that ID and see:
+- The exact request body you sent
+- Which database queries were executed
+- Any background jobs that were triggered
+- The full error stack trace (if applicable)
+
+This helps us quickly locate and diagnose the issue without asking you for additional information.
+
+#### How to Find Request IDs
+
+Request IDs are included in:
+- **Error responses**: `error.requestId` field
+- **Response headers**: `X-Request-ID` header (also included in successful responses)
+- **Your application logs**: Include the header in your logs for correlation
+
+```javascript
+// Example: Logging request ID in your application
+const response = await fetch('https://next-api.useplunk.com/v1/send', {
+  // ... your request
+});
+
+const requestId = response.headers.get('X-Request-ID');
+console.log('Request ID:', requestId);  // Log for correlation
+
+const data = await response.json();
+if (!data.success) {
+  console.error('Error:', data.error.message);
+  console.error('Request ID:', data.error.requestId);  // Same as header
+}
+```
+
+### Common Issues and Solutions
+
+import {Accordion, Accordions} from 'fumadocs-ui/components/accordion';
+
+<Accordions type="single">
+
+<Accordion title="Authentication Issues (401) — INVALID_API_KEY or MISSING_AUTH">
+
+- Verify your API key is copied correctly (no extra spaces).
+- Check you're using the right key type (`sk_` for secret, `pk_` for public).
+- Ensure the `Authorization` header uses Bearer token format.
+- Verify the key hasn't been revoked or regenerated.
+
+</Accordion>
+
+<Accordion title="Validation Issues (422) — VALIDATION_ERROR">
+
+- Check the `errors` array for specific field issues.
+- Verify all required fields are included.
+- Ensure field types match (strings quoted, numbers unquoted).
+- Review the API reference for the correct request format.
+
+</Accordion>
+
+<Accordion title="Not Found Issues (404) — TEMPLATE_NOT_FOUND, CONTACT_NOT_FOUND, etc.">
+
+- Verify the resource ID is correct.
+- Check the resource belongs to your project.
+- Ensure the resource hasn't been deleted.
+- List available resources via the API to confirm IDs.
+
+</Accordion>
+
+<Accordion title="Rate Limit Issues (429) — RATE_LIMIT_EXCEEDED">
+
+- Implement exponential backoff (wait 1s, 2s, 4s, 8s between retries).
+- Reduce request frequency.
+- Consider upgrading your plan for higher limits.
+- Batch operations when possible.
+
+</Accordion>
+
+<Accordion title="Server Errors (500) — INTERNAL_SERVER_ERROR">
+
+- Note the request ID from the error response.
+- Wait a moment and retry the request.
+- Check [status.useplunk.com](https://status.useplunk.com) for incidents.
+- Contact support with the request ID if the issue persists.
+
+</Accordion>
+
+</Accordions>
+
+### Best Practices
+
+1. **Always check the `success` field** before processing responses
+2. **Log request IDs** for debugging and support requests
+3. **Handle errors gracefully** with user-friendly messages
+4. **Implement retry logic** with exponential backoff for transient errors
+5. **Monitor error rates** to detect issues early
+6. **Use error codes** for programmatic error handling, not just status codes
+
+## Getting Help
+
+If you continue experiencing issues:
+
+1. Review the error `suggestion` field for guidance
+2. Check the [API Reference](/api-reference/overview) for correct usage
+3. Search our documentation for your specific error code
+4. Contact support with your request ID
+5. Join our community for help from other developers

@@ -1,0 +1,45 @@
+{
+  "pages": {
+    "unsubscribe": {
+      "title": "Afmelden",
+      "description": "Het spijt ons dat je vertrekt. Weet je zeker dat je {email} wilt afmelden voor het ontvangen van e-mails?",
+      "button": "Afmelden",
+      "buttonLoading": "Bezig met afmelden...",
+      "managePreferences": "Beheer in plaats daarvan voorkeuren",
+      "successTitle": "Je bent afgemeld",
+      "successDescription": "{email} is afgemeld. Je ontvangt geen e-mails meer van ons.",
+      "changedMind": "Van gedachten veranderd?",
+      "subscribeAgain": "Opnieuw aanmelden"
+    },
+    "subscribe": {
+      "title": "Aanmelden voor updates",
+      "description": "Wil je {email} aanmelden om e-mails te ontvangen?",
+      "button": "Aanmelden",
+      "buttonLoading": "Bezig met aanmelden...",
+      "successTitle": "Je bent aangemeld!",
+      "successDescription": "{email} is nu aangemeld om e-mails van ons te ontvangen."
+    },
+    "manage": {
+      "title": "Voorkeuren beheren",
+      "description": "Beheer e-mailvoorkeuren voor {email}",
+      "subscriptionLabel": "E-mailabonnement",
+      "subscribedStatus": "Je bent momenteel aangemeld om e-mails te ontvangen",
+      "unsubscribedStatus": "Je bent momenteel afgemeld voor e-mails",
+      "subscribedSuccess": "Succesvol aangemeld!",
+      "unsubscribedSuccess": "Succesvol afgemeld!",
+      "unsubscribeCompletely": "Volledig afmelden",
+      "subscribeToEmails": "Aanmelden voor e-mails",
+      "disclaimer": "Op deze pagina kun je je e-mailvoorkeuren beheren. Je abonnementsstatus wordt in realtime bijgewerkt."
+    },
+    "common": {
+      "loading": "Bezig met laden...",
+      "error": "Fout"
+    }
+  },
+  "email": {
+    "footer": {
+      "unsubscribeText": "Je ontvangt deze e-mail omdat je hebt ingestemd met het ontvangen van e-mails van {projectName}. Als je deze e-mails niet meer wilt ontvangen,",
+      "updatePreferences": "werk je voorkeuren bij"
+    }
+  }
+}

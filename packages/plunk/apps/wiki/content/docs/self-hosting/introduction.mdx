@@ -1,0 +1,34 @@
+---
+title: Self-Hosting
+description: Deploy Plunk on your own infrastructure
+---
+
+## Requirements
+
+- Docker and Docker Compose
+- AWS SES account (for sending emails)
+- Domain name with subdomains for each service
+
+## Quick Start
+
+1. Download the [docker-compose.yml](https://raw.githubusercontent.com/useplunk/plunk/next/docker-compose.yml)
+2. Create environment variables with your configuration (see [Environment Variables](/self-hosting/environment-variables))
+3. Run `docker compose up -d`
+
+## Domain Setup
+
+Configure these subdomains pointing to your server:
+
+| Subdomain | Service |
+|-----------|---------|
+| `app.yourdomain.com` | Dashboard |
+| `api.yourdomain.com` | API |
+| `docs.yourdomain.com` | Documentation |
+| `www.yourdomain.com` | Landing page |
+| `smtp.yourdomain.com` | SMTP relay (optional) |
+
+## Next Steps
+
+- [Docker Deployment](/self-hosting/docker) — Configuration details
+- [Environment Variables](/self-hosting/environment-variables) — All settings
+- [AWS SES Setup](/self-hosting/email-setup) — Email configuration

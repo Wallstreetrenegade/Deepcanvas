@@ -1,0 +1,8 @@
+{
+  "extends": "@plunk/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules"]
+}

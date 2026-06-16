@@ -1,0 +1,27 @@
+{
+  "name": "smtp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint .",
+    "clean": "rimraf node_modules dist .turbo"
+  },
+  "dependencies": {
+    "@plunk/db": "*",
+    "dotenv": "^17.2.3",
+    "mailparser": "^3.9.3",
+    "signale": "^1.4.0",
+    "smtp-server": "^3.13.4"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.4",
+    "@types/node": "^24.10.0",
+    "@types/signale": "^1.4.7",
+    "@types/smtp-server": "^3.5.10",
+    "tsx": "^4.20.6"
+  }
+}

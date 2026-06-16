@@ -1,0 +1,45 @@
+{
+  "pages": {
+    "unsubscribe": {
+      "title": "Unsubscribe",
+      "description": "We're sorry to see you go. Are you sure you want to unsubscribe {email} from receiving emails?",
+      "button": "Unsubscribe",
+      "buttonLoading": "Unsubscribing...",
+      "managePreferences": "Manage preferences instead",
+      "successTitle": "You're unsubscribed",
+      "successDescription": "{email} has been unsubscribed. You won't receive any more emails from us.",
+      "changedMind": "Changed your mind?",
+      "subscribeAgain": "Subscribe again"
+    },
+    "subscribe": {
+      "title": "Subscribe to updates",
+      "description": "Would you like to subscribe {email} to receive emails?",
+      "button": "Subscribe",
+      "buttonLoading": "Subscribing...",
+      "successTitle": "You're subscribed!",
+      "successDescription": "{email} is now subscribed to receive emails from us."
+    },
+    "manage": {
+      "title": "Manage Preferences",
+      "description": "Manage email preferences for {email}",
+      "subscriptionLabel": "Email Subscription",
+      "subscribedStatus": "You are currently subscribed to receive emails",
+      "unsubscribedStatus": "You are currently unsubscribed from emails",
+      "subscribedSuccess": "Subscribed successfully!",
+      "unsubscribedSuccess": "Unsubscribed successfully!",
+      "unsubscribeCompletely": "Unsubscribe completely",
+      "subscribeToEmails": "Subscribe to emails",
+      "disclaimer": "This page allows you to manage your email preferences. Your subscription status is updated in real-time."
+    },
+    "common": {
+      "loading": "Loading...",
+      "error": "Error"
+    }
+  },
+  "email": {
+    "footer": {
+      "unsubscribeText": "You received this email because you agreed to receive emails from {projectName}. If you no longer wish to receive emails like this, please",
+      "updatePreferences": "update your preferences"
+    }
+  }
+}

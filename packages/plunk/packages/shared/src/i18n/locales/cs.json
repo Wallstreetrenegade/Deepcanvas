@@ -1,0 +1,45 @@
+{
+  "pages": {
+    "unsubscribe": {
+      "title": "Odhlášení z odběru",
+      "description": "Mrzí nás, že odcházíte. Opravdu chcete odhlásit {email} z odběru e-mailů?",
+      "button": "Odhlásit se",
+      "buttonLoading": "Odhlašování...",
+      "managePreferences": "Spravovat předvolby",
+      "successTitle": "Odběr byl zrušen",
+      "successDescription": "E-mail {email} byl odhlášen z odběru. Už vám nebudeme zasílat žádné e-maily.",
+      "changedMind": "Změnili jste názor?",
+      "subscribeAgain": "Přihlásit se znovu"
+    },
+    "subscribe": {
+      "title": "Přihlášení k odběru",
+      "description": "Chcete přihlásit {email} k odběru e-mailů?",
+      "button": "Přihlásit se k odběru",
+      "buttonLoading": "Přihlašování...",
+      "successTitle": "Odběr byl aktivován!",
+      "successDescription": "E-mail {email} byl přihlášen k odběru e-mailů."
+    },
+    "manage": {
+      "title": "Správa předvoleb",
+      "description": "Správa e-mailových předvoleb pro {email}",
+      "subscriptionLabel": "Odběr e-mailů",
+      "subscribedStatus": "Aktuálně jste přihlášeni k odběru e-mailů",
+      "unsubscribedStatus": "Aktuálně jste odhlášeni z odběru e-mailů",
+      "subscribedSuccess": "Odběr byl úspěšně aktivován!",
+      "unsubscribedSuccess": "Odběr byl úspěšně zrušen!",
+      "unsubscribeCompletely": "Úplně se odhlásit z odběru",
+      "subscribeToEmails": "Přihlásit se k odběru e-mailů",
+      "disclaimer": "Na této stránce můžete spravovat své e-mailové předvolby. Stav odběru se aktualizuje v reálném čase."
+    },
+    "common": {
+      "loading": "Načítání...",
+      "error": "Chyba"
+    }
+  },
+  "email": {
+    "footer": {
+      "unsubscribeText": "Tento e-mail jste obdrželi, protože jste souhlasili se zasíláním e-mailů od {projectName}. Pokud si již nepřejete dostávat tyto e-maily, můžete",
+      "updatePreferences": "změnit své předvolby"
+    }
+  }
+}

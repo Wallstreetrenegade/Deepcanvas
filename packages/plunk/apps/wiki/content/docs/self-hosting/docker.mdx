@@ -1,0 +1,113 @@
+---
+title: Docker Deployment
+description: Deploy with Docker Compose
+---
+
+## Quick Start
+
+1. Download [docker-compose.yml](https://raw.githubusercontent.com/useplunk/plunk/next/docker-compose.yml)
+2. Configure environment variables
+3. Run `docker compose up -d`
+
+## Minimal .env
+
+```bash
+# Required
+JWT_SECRET="$(openssl rand -base64 32)"
+DB_PASSWORD="your-secure-password"
+
+# Domains (point these to your server)
+API_DOMAIN="api.yourdomain.com"
+DASHBOARD_DOMAIN="app.yourdomain.com"
+LANDING_DOMAIN="www.yourdomain.com"
+WIKI_DOMAIN="docs.yourdomain.com"
+USE_HTTPS="true"
+
+# AWS SES
+AWS_SES_REGION="us-east-1"
+AWS_SES_ACCESS_KEY_ID="your-key"
+AWS_SES_SECRET_ACCESS_KEY="your-secret"
+SES_CONFIGURATION_SET="plunk-tracking"
+```
+
+See [Environment Variables](/self-hosting/environment-variables) for all options.
+
+## Services
+
+| Service | Purpose |
+|---------|---------|
+| `plunk` | All apps + nginx (API, Web, Landing, Wiki, SMTP) |
+| `postgres` | PostgreSQL 16 database |
+| `redis` | Redis 7 queue |
+| `minio` | S3-compatible storage |
+| `ntfy` | Notifications |
+
+## Ports
+
+| Port  | Service                                  |
+| ----- | ---------------------------------------- |
+| 80    | Nginx (HTTP) — fronts API, dashboard, landing, wiki |
+| 465   | SMTP (implicit TLS)                      |
+| 587   | SMTP (STARTTLS)                          |
+| 8080  | API server (proxied through nginx; not usually exposed externally) |
+| 9000  | Minio API                                |
+| 9001  | Minio web console                        |
+
+When deploying behind a reverse proxy or load balancer, expose port 80 (and 465/587 if using SMTP). Postgres, Redis, and Minio are kept internal to the Docker network by default.
+
+## Health check
+
+The API exposes a health endpoint at `/health` for orchestrators (Docker Compose, Kubernetes, load balancers):
+
+```bash
+curl https://api.yourdomain.com/health
+# { "status": "ok", "time": ..., "uptime": ... }
+```
+
+Use this for liveness/readiness probes. It returns `200` when the API process is up and able to serve requests.
+
+## Running Individual Services
+
+Set `SERVICE` environment variable:
+
+```bash
+SERVICE=api    # API only
+SERVICE=worker # Worker only
+SERVICE=web    # Dashboard only
+SERVICE=all    # Everything (default)
+```
+
+## SMTP TLS Certificates
+
+For TLS on ports 465/587, provide certificates via one of these methods:
+
+### Traefik acme.json (Dokploy, Coolify)
+
+Mount the `acme.json` file and set `SMTP_DOMAIN`:
+
+```yaml
+environment:
+  SMTP_DOMAIN: "smtp.yourdomain.com"
+volumes:
+  - /path/to/acme.json:/certs/acme.json:ro
+```
+
+Plunk automatically extracts the certificate for `SMTP_DOMAIN` from acme.json.
+
+### PEM Files
+
+Mount certificate files directly:
+
+```yaml
+volumes:
+  - /path/to/privkey.pem:/certs/privkey.pem:ro
+  - /path/to/fullchain.pem:/certs/fullchain.pem:ro
+```
+
+If no certificates are mounted, SMTP runs without TLS.
+
+## Building from Source
+
+```bash
+docker build -t plunk:custom .
+```

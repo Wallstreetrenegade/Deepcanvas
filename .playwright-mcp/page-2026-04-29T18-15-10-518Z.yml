@@ -1,0 +1,111 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic "DEEP CANVAS" [ref=e5]:
+      - generic [ref=e6]: DC
+      - generic [ref=e7]:
+        - generic [ref=e8]: DEEP CANVAS
+        - generic [ref=e9]: Executive Workspace
+    - generic [ref=e10]:
+      - generic [ref=e13]: Disconnected
+      - generic [ref=e15]:
+        - button "Follow system" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+        - button "Dark mode" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+        - button "Light mode" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+      - generic "project-flow-smoke-20260428@example.com" [ref=e30]:
+        - generic [ref=e31]: Project Flow Smoke Test
+        - button "Sign out" [ref=e32] [cursor=pointer]
+  - complementary [ref=e33]:
+    - generic [ref=e34]:
+      - button "Settings" [ref=e35] [cursor=pointer]
+      - button "Features" [ref=e36] [cursor=pointer]
+    - generic [ref=e37]:
+      - generic [ref=e38]: Chat
+      - button "Chat" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - text: Chat
+      - generic [ref=e43]: Agent
+      - generic [ref=e44]:
+        - button "Agent" [ref=e45] [cursor=pointer]:
+          - img [ref=e46]
+          - text: Agent
+        - button "Sessions" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+          - text: Sessions
+        - button "Heartbeat" [ref=e51] [cursor=pointer]:
+          - img [ref=e52]
+          - text: Heartbeat
+        - button "Scheduled Tasks" [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+          - text: Scheduled Tasks
+        - button "Skills" [ref=e57] [cursor=pointer]:
+          - img [ref=e58]
+          - text: Skills
+        - button "Channels" [ref=e60] [cursor=pointer]:
+          - img [ref=e61]
+          - text: Channels
+      - generic [ref=e63]: Settings
+      - generic [ref=e64]:
+        - button "Configuration" [ref=e65] [cursor=pointer]:
+          - img [ref=e66]
+          - text: Configuration
+        - button "Browser Service" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - text: Browser Service
+    - generic [ref=e73]:
+      - heading "Status" [level=3] [ref=e74]:
+        - img [ref=e75]
+        - text: Status
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - generic [ref=e81]: Context compression
+          - generic [ref=e82]: 0.0K/0.0K (--%)
+        - generic [ref=e83]:
+          - generic [ref=e84]: Memory usage
+          - generic [ref=e85]: "--"
+        - generic [ref=e86]:
+          - generic [ref=e87]:
+            - generic [ref=e88]: Message
+            - generic [ref=e89]: HEARTBEAT_UNKNOWN
+          - generic [ref=e90]:
+            - generic [ref=e91]: Time
+            - generic [ref=e92]: "--:--:--"
+    - generic [ref=e94]: Version 0.1.7
+  - main [ref=e95]:
+    - generic [ref=e96]:
+      - generic [ref=e99]:
+        - generic [ref=e101]:
+          - generic "Deep Canvas wordmark" [ref=e102]: DEEP CANVAS
+          - heading "Hello! I am DEEP CANVAS." [level=2] [ref=e103]
+          - paragraph [ref=e104]: I can help plan work, organize settings, and keep task execution moving.
+        - generic [ref=e106]:
+          - textbox "Enter to send, Shift+Enter for new line, hold mic to record" [ref=e107]
+          - generic [ref=e108]:
+            - generic [ref=e110]:
+              - button "Planning Mode" [ref=e112] [cursor=pointer]:
+                - img [ref=e113]
+                - text: Planning Mode
+              - button "Performance Mode" [ref=e115] [cursor=pointer]:
+                - img [ref=e116]
+                - text: Performance Mode
+              - button "Cluster Mode" [ref=e118] [cursor=pointer]:
+                - img [ref=e119]
+                - text: Cluster Mode
+            - generic [ref=e121]:
+              - button "New Session" [ref=e122] [cursor=pointer]:
+                - img [ref=e123]
+              - button "Hold to speak" [ref=e125] [cursor=pointer]:
+                - img [ref=e126]
+              - button "Send (Enter)" [disabled] [ref=e128]:
+                - img [ref=e129]
+      - generic [ref=e133]:
+        - generic [ref=e134]:
+          - button "Tasks" [ref=e135] [cursor=pointer]
+          - button "Connections" [ref=e136] [cursor=pointer]
+        - generic [ref=e139]:
+          - img [ref=e140]
+          - paragraph [ref=e142]: No tasks
+        - generic [ref=e144]: DEEP CANVAS
+  - generic [ref=e146]: Loading config...

@@ -1,0 +1,23 @@
+{
+  "name": "@plunk/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf node_modules .turbo dist",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@plunk/db": "*",
+    "@plunk/typescript-config": "*",
+    "@types/node": "^24.10.0",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@plunk/types": "*",
+    "zod": "^3.23.8"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  }
+}

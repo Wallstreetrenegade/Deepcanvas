@@ -1,0 +1,45 @@
+{
+  "pages": {
+    "unsubscribe": {
+      "title": "Cancelar inscrição",
+      "description": "Lamentamos vê-lo partir. Tem certeza de que deseja cancelar a inscrição de {email} para não receber mais e-mails?",
+      "button": "Cancelar inscrição",
+      "buttonLoading": "Cancelando inscrição...",
+      "managePreferences": "Gerenciar preferências",
+      "successTitle": "Inscrição cancelada",
+      "successDescription": "{email} foi removido da lista. Você não receberá mais e-mails nossos.",
+      "changedMind": "Mudou de ideia?",
+      "subscribeAgain": "Inscrever-se novamente"
+    },
+    "subscribe": {
+      "title": "Inscrever-se para atualizações",
+      "description": "Deseja inscrever {email} para receber e-mails?",
+      "button": "Inscrever-se",
+      "buttonLoading": "Inscrevendo...",
+      "successTitle": "Você está inscrito!",
+      "successDescription": "{email} agora está inscrito para receber nossos e-mails."
+    },
+    "manage": {
+      "title": "Gerenciar Preferências",
+      "description": "Gerenciar preferências de e-mail para {email}",
+      "subscriptionLabel": "Inscrição de E-mail",
+      "subscribedStatus": "Você está inscrito para receber e-mails",
+      "unsubscribedStatus": "Você cancelou a inscrição de e-mails",
+      "subscribedSuccess": "Inscrito com sucesso!",
+      "unsubscribedSuccess": "Inscrição cancelada com sucesso!",
+      "unsubscribeCompletely": "Cancelar inscrição completamente",
+      "subscribeToEmails": "Inscrever-se para e-mails",
+      "disclaimer": "Esta página permite que você gerencie suas preferências de e-mail. Seu status de inscrição é atualizado em tempo real."
+    },
+    "common": {
+      "loading": "Carregando...",
+      "error": "Erro"
+    }
+  },
+  "email": {
+    "footer": {
+      "unsubscribeText": "Você recebeu este e-mail porque concordou em receber e-mails de {projectName}. Se não deseja mais receber e-mails como este, por favor",
+      "updatePreferences": "atualize suas preferências"
+    }
+  }
+}

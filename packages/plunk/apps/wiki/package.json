@@ -1,0 +1,41 @@
+{
+  "name": "wiki",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prebuild": "node scripts/generate-openapi.js && npx tsx scripts/generate-docs.mts && fumadocs-mdx",
+    "build": "next build",
+    "sitemap": "next-sitemap --config next-sitemap.config.mjs",
+    "predev": "node scripts/generate-openapi.js && npx tsx scripts/generate-docs.mts && fumadocs-mdx",
+    "dev": "next dev --turbo --port 1000",
+    "start": "next start",
+    "postinstall": "fumadocs-mdx",
+    "generate-docs": "node scripts/generate-openapi.js && npx tsx scripts/generate-docs.mts",
+    "lint": "eslint .",
+    "clean": "rimraf node_modules .next .turbo"
+  },
+  "dependencies": {
+    "fumadocs-core": "16.0.8",
+    "fumadocs-mdx": "13.0.5",
+    "fumadocs-openapi": "^10.0.11",
+    "fumadocs-ui": "16.0.8",
+    "lucide-react": "^0.553.0",
+    "next": "^16.2.3",
+    "next-sitemap": "^4.2.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "shiki": "^3.15.0",
+    "unist-util-visit": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^4.1.17",
+    "typescript": "^5.7.2"
+  }
+}

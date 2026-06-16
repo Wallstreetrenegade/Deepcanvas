@@ -1,0 +1,14 @@
+.git
+.github
+.firebase
+.playwright-mcp
+.pytest_cache
+logs
+node_modules
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+creative-studio-live-20260429.png
+jiuwenclaw/web/.env
+jiuwenclaw/web/.env.*

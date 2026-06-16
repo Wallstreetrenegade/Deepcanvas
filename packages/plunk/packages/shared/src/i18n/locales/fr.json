@@ -1,0 +1,45 @@
+{
+  "pages": {
+    "unsubscribe": {
+      "title": "Se désabonner",
+      "description": "Nous sommes désolés de vous voir partir. Êtes-vous sûr de vouloir désabonner {email} de la réception des e-mails ?",
+      "button": "Se désabonner",
+      "buttonLoading": "Désabonnement en cours...",
+      "managePreferences": "Gérer les préférences",
+      "successTitle": "Vous êtes désabonné",
+      "successDescription": "{email} a été désabonné. Vous ne recevrez plus nos e-mails.",
+      "changedMind": "Vous avez changé d’avis ?",
+      "subscribeAgain": "Se réabonner"
+    },
+    "subscribe": {
+      "title": "S’abonner aux mises à jour",
+      "description": "Souhaitez-vous abonner {email} pour recevoir des e-mails ?",
+      "button": "S’abonner",
+      "buttonLoading": "Abonnement en cours...",
+      "successTitle": "Vous êtes abonné !",
+      "successDescription": "{email} est maintenant abonné pour recevoir nos e-mails."
+    },
+    "manage": {
+      "title": "Gérer les préférences",
+      "description": "Gérez les préférences e-mail pour {email}",
+      "subscriptionLabel": "Abonnement e-mail",
+      "subscribedStatus": "Vous êtes actuellement abonné",
+      "unsubscribedStatus": "Vous êtes actuellement désabonné",
+      "subscribedSuccess": "Abonné avec succès !",
+      "unsubscribedSuccess": "Désabonné avec succès !",
+      "unsubscribeCompletely": "Se désabonner complètement",
+      "subscribeToEmails": "S’abonner aux e-mails",
+      "disclaimer": "Cette page vous permet de gérer vos préférences e-mail. Votre statut d’abonnement est mis à jour en temps réel."
+    },
+    "common": {
+      "loading": "Chargement...",
+      "error": "Erreur"
+    }
+  },
+  "email": {
+    "footer": {
+      "unsubscribeText": "Vous recevez cet e-mail parce que vous avez accepté de recevoir des e-mails de la part de {projectName}. Si vous ne souhaitez plus recevoir d’e-mails de ce type, veuillez",
+      "updatePreferences": "mettre à jour vos préférences"
+    }
+  }
+}

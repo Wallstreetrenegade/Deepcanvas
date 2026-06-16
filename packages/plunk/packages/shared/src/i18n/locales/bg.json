@@ -1,0 +1,45 @@
+{
+  "pages": {
+    "unsubscribe": {
+      "title": "Отписване",
+      "description": "Съжаляваме, че си тръгвате. Сигурни ли сте, че искате да отпишете {email} от получаването на имейли?",
+      "button": "Отпиши",
+      "buttonLoading": "Отписване...",
+      "managePreferences": "Управлявай настройки",
+      "successTitle": "Отписани сте",
+      "successDescription": "{email} е отписан. Няма да получавате повече имейли от нас.",
+      "changedMind": "Размислихте?",
+      "subscribeAgain": "Абонирай се пак"
+    },
+    "subscribe": {
+      "title": "Абонамент за новини",
+      "description": "Искате ли да абонирате {email} за имейли?",
+      "button": "Абонирай",
+      "buttonLoading": "Абониране...",
+      "successTitle": "Абонирани сте!",
+      "successDescription": "{email} вече е абониран за имейли от нас."
+    },
+    "manage": {
+      "title": "Настройки",
+      "description": "Настройки за {email}",
+      "subscriptionLabel": "Абонамент",
+      "subscribedStatus": "В момента сте абониран",
+      "unsubscribedStatus": "В момента сте отписан",
+      "subscribedSuccess": "Успешно абониране!",
+      "unsubscribedSuccess": "Успешно отписване!",
+      "unsubscribeCompletely": "Пълно отписване",
+      "subscribeToEmails": "Абонирай за имейли",
+      "disclaimer": "Тук управлявате имейл настройките си. Статусът се обновява веднага."
+    },
+    "common": {
+      "loading": "Зарежда...",
+      "error": "Грешка"
+    }
+  },
+  "email": {
+    "footer": {
+      "unsubscribeText": "Получихте този имейл, защото сте се съгласили да получавате имейли от {projectName}. Ако не желаете повече такива имейли, моля",
+      "updatePreferences": "променете настройките"
+    }
+  }
+}

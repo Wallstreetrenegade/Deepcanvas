@@ -1,0 +1,1 @@
+export { initAdvancedVideoEditor } from '../../../imgly';

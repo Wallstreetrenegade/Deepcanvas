@@ -1,0 +1,788 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ============================================
+// CORE MODELS
+// ============================================
+
+model User {
+  id String @id @default(uuid())
+
+  // Credentials
+  email         String     @unique
+  password      String?
+  type          AuthMethod
+  emailVerified Boolean    @default(false)
+
+  // Relations
+  memberships Membership[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Project {
+  id String @id @default(uuid())
+
+  // Details
+  name String
+
+  // API
+  public String @unique
+  secret String @unique
+
+  // Admin
+  disabled       Boolean                @default(false)
+  disabledReason ProjectDisabledReason?
+
+  // Billing
+  customer     String? @unique
+  subscription String? @unique
+
+  // Billing Limits (per calendar month, null = unlimited)
+  billingLimitWorkflows     Int? // Max workflow emails per month
+  billingLimitCampaigns     Int? // Max campaign emails per month
+  billingLimitTransactional Int? // Max transactional emails per month
+  billingLimitInbound       Int? // Max inbound emails per month
+
+  // Email Tracking
+  tracking TrackingMode @default(ENABLED) // Open and click tracking mode
+
+  // Localization
+  language String @default("en") // Language code for customer-facing content (ISO 639-1)
+
+  // Relations
+  members     Membership[]
+  contacts    Contact[]
+  templates   Template[]
+  segments    Segment[]
+  workflows   Workflow[]
+  campaigns   Campaign[]
+  emails      Email[]
+  events      Event[]
+  domains     Domain[]
+  apiRequests ApiRequest[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Membership {
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  // Details
+  role Role @default(MEMBER)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, projectId])
+  @@map("memberships")
+}
+
+model Domain {
+  id String @id @default(uuid())
+
+  // Domain details
+  domain   String
+  verified Boolean @default(false)
+
+  // DKIM tokens for DNS verification
+  dkimTokens Json? // Array of DKIM token strings
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, domain])
+  @@index([projectId])
+  @@index([projectId, verified])
+  @@map("domains")
+}
+
+// ============================================
+// CONTACTS & TEMPLATES
+// ============================================
+
+model Contact {
+  id String @id @default(uuid())
+
+  // Details
+  email String
+  data  Json? // Custom fields: { firstName: "John", plan: "pro", ... }
+
+  // Subscription
+  subscribed Boolean @default(true)
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  emails             Email[]
+  workflowExecutions WorkflowExecution[]
+  events             Event[]
+  segmentMemberships SegmentMembership[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, email])
+  @@index([projectId])
+  @@index([projectId, subscribed])
+  @@index([data(ops: JsonbOps)], type: Gin) // GIN index for fast JSON queries on Contact.data
+  @@map("contacts")
+}
+
+model Template {
+  id String @id @default(uuid())
+
+  // Details
+  name        String
+  description String?
+
+  // Content
+  subject  String
+  body     String // HTML content with {{variable}} placeholders
+  from     String
+  fromName String?
+  replyTo  String?
+
+  // Type
+  type TemplateType @default(MARKETING)
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  emails        Email[]
+  workflowSteps WorkflowStep[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([projectId, type])
+  @@map("templates")
+}
+
+// ============================================
+// SEGMENTS (Dynamic audience groups)
+// ============================================
+
+model Segment {
+  id String @id @default(uuid())
+
+  // Details
+  name        String
+  description String?
+
+  // Segment type: DYNAMIC (filter-based) or STATIC (manually managed)
+  type SegmentType @default(DYNAMIC)
+
+  // Filter condition (evaluated dynamically, null for STATIC segments)
+  condition Json?
+  // Nested filter structure with AND/OR logic:
+  // {
+  //   logic: "OR",
+  //   groups: [
+  //     {
+  //       filters: [
+  //         { field: "data.plan", operator: "equals", value: "VIP" },
+  //         { field: "subscribed", operator: "equals", value: true }
+  //       ]
+  //     },
+  //     {
+  //       filters: [
+  //         { field: "createdAt", operator: "within", value: 30, unit: "days" }
+  //       ],
+  //       conditions: {
+  //         logic: "AND",
+  //         groups: [...]
+  //       }
+  //     }
+  //   ]
+  // }
+  // Operators: equals, notEquals, contains, greaterThan, lessThan, within, exists, etc.
+
+  // Track membership changes (enables segment entry/exit events)
+  trackMembership Boolean @default(false)
+
+  // Stats (computed)
+  memberCount Int @default(0)
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  memberships SegmentMembership[]
+  campaigns   Campaign[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([condition(ops: JsonbOps)], type: Gin) // GIN index for segment condition queries
+  @@map("segments")
+}
+
+model SegmentMembership {
+  // Relations
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactId String
+
+  segment   Segment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  segmentId String
+
+  // Membership tracking
+  enteredAt DateTime  @default(now())
+  exitedAt  DateTime? // null = currently in segment
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([contactId, segmentId])
+  @@index([segmentId, exitedAt]) // Active members (exitedAt = null)
+  @@index([contactId, exitedAt])
+  @@index([enteredAt])
+  @@map("segment_memberships")
+}
+
+// ============================================
+// CAMPAIGNS (One-time broadcasts)
+// ============================================
+
+model Campaign {
+  id String @id @default(uuid())
+
+  // Details
+  name        String
+  description String?
+  status      CampaignStatus @default(DRAFT)
+
+  // Email content
+  subject  String
+  body     String  @db.Text
+  from     String
+  fromName String?
+  replyTo  String?
+
+  // Campaign type
+  type TemplateType @default(MARKETING)
+
+  // Audience selection
+  audienceType      CampaignAudienceType @default(ALL)
+  audienceCondition Json? // For FILTERED: manual filter condition with AND/OR logic (same structure as Segment.condition)
+
+  segment   Segment? @relation(fields: [segmentId], references: [id])
+  segmentId String? // For SEGMENT: reference to saved segment
+
+  // Scheduling
+  scheduledFor DateTime?
+
+  // Stats (computed)
+  totalRecipients Int @default(0)
+  sentCount       Int @default(0)
+  deliveredCount  Int @default(0)
+  openedCount     Int @default(0)
+  clickedCount    Int @default(0)
+  bouncedCount    Int @default(0)
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  emails Email[]
+
+  // Timestamps
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([projectId, status])
+  @@index([scheduledFor])
+  @@index([segmentId])
+  @@index([audienceCondition(ops: JsonbOps)], type: Gin) // GIN index for campaign audience condition queries
+  @@map("campaigns")
+}
+
+// ============================================
+// WORKFLOWS (Automated sequences)
+// ============================================
+
+model Workflow {
+  id String @id @default(uuid())
+
+  // Details
+  name        String
+  description String?
+  enabled     Boolean @default(false)
+
+  // Entry point
+  triggerType   WorkflowTriggerType
+  triggerConfig Json? // { eventName: "user.signup" } or { schedule: "0 9 * * *" }
+
+  // Re-entry behavior
+  allowReentry Boolean @default(false) // If true, contacts can enter workflow multiple times
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  steps      WorkflowStep[]
+  executions WorkflowExecution[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([projectId, enabled])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id String @id @default(uuid())
+
+  // Step details
+  type     WorkflowStepType
+  name     String
+  position Json // { x: 100, y: 200 } for visual editor
+
+  // Step configuration (flexible JSON)
+  config Json
+  // Examples by type:
+  // TRIGGER: { eventName: "user.signup" }
+  // SEND_EMAIL: { templateId: "uuid", from: "team@example.com" }
+  // DELAY: { amount: 24, unit: "hours" }
+  // WAIT_FOR_EVENT: { eventName: "email.clicked", timeout: 86400 }
+  // CONDITION: { field: "contact.data.plan", operator: "equals", value: "pro" }
+  // EXIT: { reason: "unsubscribed" }
+
+  // Relations
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflowId String
+
+  template   Template? @relation(fields: [templateId], references: [id])
+  templateId String? // For SEND_EMAIL steps
+
+  // Graph connections
+  outgoingTransitions WorkflowTransition[] @relation("FromStep")
+  incomingTransitions WorkflowTransition[] @relation("ToStep")
+
+  // Execution tracking
+  executions                WorkflowStepExecution[]
+  currentWorkflowExecutions WorkflowExecution[] // Executions currently on this step
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workflowId])
+  @@index([templateId])
+  @@map("workflow_steps")
+}
+
+model WorkflowTransition {
+  id String @id @default(uuid())
+
+  // From -> To
+  fromStep   WorkflowStep @relation("FromStep", fields: [fromStepId], references: [id], onDelete: Cascade)
+  fromStepId String
+
+  toStep   WorkflowStep @relation("ToStep", fields: [toStepId], references: [id], onDelete: Cascade)
+  toStepId String
+
+  // Conditional routing
+  condition Json? // null = always follow, or { branch: "yes" } for condition steps
+  priority  Int   @default(0) // Order to evaluate transitions
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fromStepId])
+  @@index([toStepId])
+  @@map("workflow_transitions")
+}
+
+model WorkflowExecution {
+  id String @id @default(uuid())
+
+  // Relations
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflowId String
+
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactId String
+
+  // Execution state
+  status WorkflowExecutionStatus @default(RUNNING)
+
+  // Current position
+  currentStep   WorkflowStep? @relation(fields: [currentStepId], references: [id])
+  currentStepId String?
+
+  // Exit information
+  exitReason String?
+
+  // Context data (merged with contact.data when executing)
+  context Json? // Additional variables for this execution
+
+  // Relations
+  stepExecutions WorkflowStepExecution[]
+  emails         Email[]
+
+  // Timestamps
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workflowId, contactId]) // Index for querying executions by workflow and contact
+  @@index([workflowId, status])
+  @@index([contactId, status])
+  @@index([status, currentStepId])
+  @@map("workflow_executions")
+}
+
+model WorkflowStepExecution {
+  id String @id @default(uuid())
+
+  // Relations
+  execution   WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  executionId String
+
+  step   WorkflowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  stepId String
+
+  // Execution state
+  status StepExecutionStatus @default(PENDING)
+
+  // Delay/scheduling
+  scheduledFor DateTime? // When this step should execute (for DELAY steps)
+  executeAfter DateTime? // Don't execute before this time (for WAIT_FOR_EVENT timeout)
+
+  // Result tracking
+  output Json? // Step execution result
+  error  String?
+
+  // Relations
+  emails Email[] // Emails sent by this step execution
+
+  // Timestamps
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([executionId, status])
+  @@index([stepId])
+  @@index([status, scheduledFor]) // For delay queue processor
+  @@index([scheduledFor])
+  @@map("workflow_step_executions")
+}
+
+// ============================================
+// EMAILS (Unified tracking for all sends)
+// ============================================
+
+model Email {
+  id String @id @default(uuid())
+
+  // Recipient
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactId String
+  toName    String? // Recipient display name for To header
+
+  // Content (denormalized for history)
+  subject     String
+  body        String // Rendered HTML
+  from        String
+  fromName    String?
+  replyTo     String?
+  headers     Json? // Custom email headers
+  attachments Json? // Array of {filename: string, content: string (base64), contentType: string}
+
+  // AWS SES Message ID (for tracking webhooks)
+  messageId String? @unique
+
+  // Source - identifies how this email was triggered
+  sourceType EmailSourceType
+
+  // Relations to source (one will be set based on sourceType)
+  template   Template? @relation(fields: [templateId], references: [id])
+  templateId String? // For TRANSACTIONAL
+
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String? // For CAMPAIGN
+
+  workflowExecution   WorkflowExecution? @relation(fields: [workflowExecutionId], references: [id], onDelete: Cascade)
+  workflowExecutionId String? // For WORKFLOW
+
+  workflowStepExecution   WorkflowStepExecution? @relation(fields: [workflowStepExecutionId], references: [id], onDelete: Cascade)
+  workflowStepExecutionId String? // For WORKFLOW (specific step)
+
+  // Delivery
+  status EmailStatus @default(PENDING)
+
+  // Event timestamps
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  openedAt     DateTime? // First open
+  clickedAt    DateTime? // First click
+  bouncedAt    DateTime?
+  complainedAt DateTime?
+
+  // Event counts
+  opens  Int @default(0)
+  clicks Int @default(0)
+
+  // Error tracking
+  error String?
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  events Event[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, contactId])
+  @@index([contactId])
+  @@index([campaignId])
+  @@index([workflowExecutionId])
+  @@index([workflowStepExecutionId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([projectId, sourceType, createdAt]) // For billing limit queries
+  @@index([contactId, openedAt]) // For email activity segment queries
+  @@index([contactId, clickedAt]) // For email activity segment queries
+  @@index([contactId, bouncedAt]) // For email activity segment queries
+  @@index([contactId, complainedAt]) // For email activity segment queries
+  @@map("emails")
+}
+
+// ============================================
+// EVENTS (Webhook tracking & workflow triggers)
+// ============================================
+
+model Event {
+  id String @id @default(uuid())
+
+  // Event details
+  name String // e.g., "email.opened", "email.clicked", "user.signup"
+  data Json? // Event payload
+
+  // Relations
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactId String?
+
+  email   Email?  @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  emailId String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@index([projectId, name])
+  @@index([contactId])
+  @@index([emailId])
+  @@index([createdAt])
+  @@index([projectId, contactId, name, createdAt]) // For event-based segment queries (fast!)
+  @@index([contactId, name, createdAt]) // For per-contact event lookups
+  @@index([projectId, name, createdAt]) // For event stats and analytics by type over time
+  @@index([contactId, createdAt]) // For contact activity timeline (recent events)
+  @@index([data(ops: JsonbOps)], type: Gin) // GIN index for event data queries
+  @@map("events")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum ProjectDisabledReason {
+  PAYMENT_FAILED // Subscription renewal payment failed
+  EMAIL_REPUTATION // Bounce or complaint rate thresholds exceeded
+  PHISHING_DETECTED // Phishing content detected by LLM scan
+  MANUAL // Disabled by support/admin (e.g. directly in DB)
+}
+
+enum AuthMethod {
+  PASSWORD
+  GOOGLE_OAUTH
+  GITHUB_OAUTH
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum TemplateType {
+  TRANSACTIONAL
+  MARKETING
+  HEADLESS
+}
+
+enum TrackingMode {
+  ENABLED // Track opens and clicks for all emails
+  DISABLED // No tracking for any emails
+  MARKETING_ONLY // Track only marketing/campaign emails, not transactional
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum CampaignAudienceType {
+  ALL // All contacts
+  FILTERED // Based on audienceFilter
+  SEGMENT // Predefined segment
+}
+
+enum WorkflowTriggerType {
+  EVENT // Triggered by an event (e.g., user.signup)
+  MANUAL // Manually started via API
+  SCHEDULE // Runs on a schedule (cron)
+}
+
+enum WorkflowStepType {
+  TRIGGER // Entry point
+  SEND_EMAIL // Send an email
+  DELAY // Wait for X time
+  WAIT_FOR_EVENT // Wait for specific event (with timeout)
+  CONDITION // If/else branching
+  EXIT // Early exit point
+  WEBHOOK // Call external webhook
+  UPDATE_CONTACT // Update contact fields
+}
+
+enum WorkflowExecutionStatus {
+  RUNNING // Currently executing
+  WAITING // Waiting for event or delay
+  COMPLETED // Finished normally
+  EXITED // Exited early (via EXIT step)
+  FAILED // Failed with error
+  CANCELLED // Manually cancelled
+}
+
+// ============================================
+// API REQUEST LOGGING
+// ============================================
+
+model ApiRequest {
+  id String @id // Request ID (UUID from X-Request-ID header)
+
+  // Request metadata
+  method     String // HTTP method (GET, POST, etc.)
+  path       String // Request path (/v1/send, /contacts, etc.)
+  statusCode Int // HTTP response status code
+  duration   Int // Response time in milliseconds
+
+  // Authentication context
+  projectId String? // Project that made the request (if authenticated)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  userId    String? // User that made the request (if JWT auth)
+  authType  String? // "apiKey" or "jwt"
+
+  // Request details
+  ip        String? // Client IP address
+  userAgent String? // User-Agent header
+
+  // Error information (if status >= 400)
+  errorCode    String? // Machine-readable error code (VALIDATION_ERROR, etc.)
+  errorMessage String? // Human-readable error message
+
+  // Size tracking (for analytics)
+  requestSize  Int? // Request body size in bytes
+  responseSize Int? // Response body size in bytes
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Indexes for efficient querying
+  @@index([projectId, createdAt(sort: Desc)]) // Query requests by project, most recent first
+  @@index([userId, createdAt(sort: Desc)]) // Query requests by user
+  @@index([statusCode, createdAt(sort: Desc)]) // Query errors (WHERE statusCode >= 400)
+  @@index([path, createdAt(sort: Desc)]) // Query by endpoint
+  @@index([createdAt(sort: Desc)]) // General time-based queries
+  @@index([projectId, statusCode, createdAt(sort: Desc)]) // Composite for project error queries
+  @@map("api_requests")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum StepExecutionStatus {
+  PENDING // Not yet started
+  SCHEDULED // Scheduled for future execution (DELAY)
+  WAITING // Waiting for event (WAIT_FOR_EVENT)
+  RUNNING // Currently executing
+  COMPLETED // Successfully completed
+  SKIPPED // Skipped (e.g., condition not met)
+  FAILED // Failed with error
+}
+
+enum SegmentType {
+  DYNAMIC // Filter-based segment evaluated against contacts at query time
+  STATIC // Manually curated list of contacts managed via memberships
+}
+
+enum EmailSourceType {
+  TRANSACTIONAL // Sent via API call
+  CAMPAIGN // Sent as part of broadcast
+  WORKFLOW // Sent via workflow automation
+  INBOUND // Received via SES inbound
+}
+
+enum EmailStatus {
+  PENDING // Queued for sending
+  SENDING // Currently being sent
+  SENT // Successfully sent to provider
+  DELIVERED // Confirmed delivered
+  RECEIVED // Received by platform (inbound)
+  OPENED // Recipient opened email
+  CLICKED // Recipient clicked link
+  BOUNCED // Bounced (hard or soft)
+  COMPLAINED // Marked as spam
+  FAILED // Failed to send
+}

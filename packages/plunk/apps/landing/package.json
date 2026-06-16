@@ -1,0 +1,55 @@
+{
+  "name": "landing",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4000",
+    "build": "next build",
+    "sitemap": "next-sitemap",
+    "start": "next start",
+    "lint": "eslint .",
+    "clean": "rimraf node_modules .next .turbo"
+  },
+  "dependencies": {
+    "@plunk/db": "*",
+    "@plunk/shared": "*",
+    "@plunk/ui": "*",
+    "@tiptap/core": "^3.11.0",
+    "@tiptap/extension-color": "^3.11.0",
+    "@tiptap/extension-image": "^3.11.0",
+    "@tiptap/extension-link": "^3.11.0",
+    "@tiptap/extension-placeholder": "^3.11.0",
+    "@tiptap/extension-text-align": "^3.11.0",
+    "@tiptap/extension-text-style": "^3.11.0",
+    "@tiptap/extension-underline": "^3.11.0",
+    "@tiptap/pm": "^3.11.0",
+    "@tiptap/react": "^3.11.0",
+    "@tiptap/starter-kit": "^3.11.0",
+    "juice": "^11.0.3",
+    "lucide-react": "^0.553.0",
+    "next": "^16.2.3",
+    "next-seo": "^6.6.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "sonner": "^2.0.6"
+  },
+  "devDependencies": {
+    "@plunk/eslint-config": "*",
+    "@tailwindcss/forms": "^0.5.10",
+    "@tailwindcss/postcss": "^4.1.17",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "^16.0.1",
+    "next-sitemap": "^4.2.3",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^4.1.17",
+    "typescript": "^5.7.2"
+  },
+  "resolutions": {
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3"
+  }
+}

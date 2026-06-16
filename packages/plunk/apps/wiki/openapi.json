@@ -1,0 +1,1499 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Plunk API",
+    "description": "Open-source email platform API for transactional emails, campaigns, and marketing automation",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Plunk Support",
+      "url": "https://www.useplunk.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://next-api.useplunk.com",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key",
+        "description": "API Key authentication. **Secret keys (sk_*)** are required for all endpoints except `/v1/track`. **Public keys (pk_*)** only work with the `/v1/track` endpoint for client-side event tracking. The project is automatically derived from the key."
+      }
+    },
+    "schemas": {
+      "Contact": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique contact identifier"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Contact email address"
+          },
+          "subscribed": {
+            "type": "boolean",
+            "description": "Subscription status"
+          },
+          "data": {
+            "type": "object",
+            "description": "Custom contact data fields",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Template": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["TRANSACTIONAL", "MARKETING"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Campaign": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["ALL", "SEGMENT", "FILTERED"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["DRAFT", "SCHEDULED", "SENDING", "SENT"]
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "Segment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "filters": {
+            "type": "object"
+          },
+          "trackMembership": {
+            "type": "boolean"
+          },
+          "memberCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "time": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        },
+        "description": "Maximum items per page"
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "schema": {
+          "type": "string"
+        },
+        "description": "Pagination cursor"
+      }
+    }
+  },
+  "paths": {
+    "/v1/send": {
+      "post": {
+        "tags": ["Public API"],
+        "summary": "Send transactional email",
+        "description": "Send a transactional email via the public API. Automatically creates or updates the recipient contact.\n\n**Required content:** either a `template` ID, **or** both `subject` and `body`. Template fields can be overridden by explicit request fields.\n\n**Sender:** `from` is required unless using a template that already has a `from` configured. The sender's domain must be verified.\n\n**Multiple recipients:** when `to` is an array, each recipient is processed sequentially with its own contact upsert and rendered email — there is no batch-send semantics. Sending is always immediate; for scheduled sends, use a Campaign.\n\n**Attachments:** up to 10 attachments per email and 10 MB total by default. The total message size cannot exceed 40 MB.",
+        "operationId": "sendEmail",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["to"],
+                "properties": {
+                  "to": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "description": "Simple email address"
+                      },
+                      {
+                        "type": "object",
+                        "required": ["email"],
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Recipient display name"
+                          },
+                          "email": {
+                            "type": "string",
+                            "format": "email",
+                            "description": "Recipient email address"
+                          }
+                        },
+                        "description": "Recipient with name and email"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "string",
+                              "format": "email"
+                            },
+                            {
+                              "type": "object",
+                              "required": ["email"],
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Recipient display name"
+                                },
+                                "email": {
+                                  "type": "string",
+                                  "format": "email",
+                                  "description": "Recipient email address"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "description": "Array of recipients (strings or objects)"
+                      }
+                    ],
+                    "description": "Recipient email(s). Can be a string, an object with {name, email}, or an array of either."
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 998,
+                    "description": "Email subject. Required if no `template` is provided. Cannot contain newline characters."
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Email body (HTML). Required if no `template` is provided."
+                  },
+                  "template": {
+                    "type": "string",
+                    "description": "Template ID to use for this email. When provided, uses the template's subject, body, from, and reply-to settings. You can override these by explicitly providing subject, body, from, or reply fields in the request. Template variables are populated from the data field."
+                  },
+                  "from": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "description": "Simple email address"
+                      },
+                      {
+                        "type": "object",
+                        "required": ["email"],
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Sender display name"
+                          },
+                          "email": {
+                            "type": "string",
+                            "format": "email",
+                            "description": "Sender email address"
+                          }
+                        },
+                        "description": "Sender with name and email"
+                      }
+                    ],
+                    "description": "Sender email address (requires verified domain). Required unless using a template that has a 'from' address configured. Can be a string (e.g., 'hello@example.com') or an object with {name, email} (e.g., {name: 'My App', email: 'hello@example.com'})."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "**Deprecated.** Sender display name. Prefer `from: { name, email }`. Used only as a fallback when `from` is a string and no name is set there."
+                  },
+                  "subscribed": {
+                    "type": "boolean",
+                    "description": "Subscription state to apply to the recipient. For **new** contacts, defaults to `false` on `/v1/send`. For **existing** contacts, omitting this preserves their current state — pass `true` or `false` to explicitly change it. A change emits `contact.subscribed` or `contact.unsubscribed`."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Variables for template rendering and contact data updates. Each value can be:\n- A primitive (string, number, boolean) — saved on the contact and available as a template variable.\n- `null` — deletes the field from the contact.\n- An empty string — skipped (does not overwrite existing data).\n- An object `{ value, persistent: false }` — used for this send only, not stored on the contact (good for one-shot password reset codes, magic links).\n\nReserved keys (`id`, `plunk_id`, `plunk_email`, `email`, `unsubscribeUrl`, `subscribeUrl`, `manageUrl`) are silently filtered out."
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Custom email headers. Header names cannot contain `\\r\\n`. Header values are limited to 998 characters and cannot contain `\\r\\n` (header injection is rejected)."
+                  },
+                  "reply": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Reply-to address."
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "description": "Email attachments. Default cap: 10 attachments and 10 MB total. The full message size cannot exceed 40 MB.",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "object",
+                      "required": ["filename", "content", "contentType"],
+                      "properties": {
+                        "filename": {
+                          "type": "string",
+                          "maxLength": 255,
+                          "description": "Attachment filename. Cannot contain newline or quote characters."
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "Base64-encoded file content."
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "maxLength": 255,
+                          "description": "MIME type (e.g., `application/pdf`, `image/png`)."
+                        },
+                        "contentId": {
+                          "type": "string",
+                          "description": "Content-ID for inline images. Required when `disposition` is `inline`. Reference the image in the email body via `<img src=\"cid:yourContentId\">`."
+                        },
+                        "disposition": {
+                          "type": "string",
+                          "enum": ["attachment", "inline"],
+                          "default": "attachment",
+                          "description": "Use `inline` together with `contentId` to embed images in the body. Use `attachment` (the default) for downloadable files."
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "simple": {
+                  "summary": "Simple transactional email",
+                  "value": {
+                    "to": "user@example.com",
+                    "subject": "Password Reset Request",
+                    "body": "<h1>Reset Your Password</h1><p>Click the link to reset: {{resetLink}}</p>",
+                    "data": {
+                      "resetLink": "https://example.com/reset/abc123"
+                    }
+                  }
+                },
+                "withNames": {
+                  "summary": "Email with recipient and sender names",
+                  "value": {
+                    "to": {
+                      "name": "Jane Doe",
+                      "email": "jane@example.com"
+                    },
+                    "from": {
+                      "name": "My Company",
+                      "email": "hello@mycompany.com"
+                    },
+                    "subject": "Welcome to Our Service",
+                    "body": "<h1>Welcome {{name}}!</h1><p>We're glad to have you.</p>",
+                    "data": {
+                      "name": "Jane"
+                    }
+                  }
+                },
+                "multipleRecipients": {
+                  "summary": "Multiple recipients with names",
+                  "value": {
+                    "to": [
+                      {
+                        "name": "Jane Doe",
+                        "email": "jane@example.com"
+                      },
+                      {
+                        "name": "John Smith",
+                        "email": "john@example.com"
+                      }
+                    ],
+                    "from": {
+                      "name": "Newsletter",
+                      "email": "news@mycompany.com"
+                    },
+                    "subject": "Monthly Update",
+                    "body": "<h1>Hello {{name}}!</h1>"
+                  }
+                },
+                "withTemplate": {
+                  "summary": "Using a template",
+                  "description": "Send email using a template. Provide the template ID and any data for template variables. The template's subject, body, from address, and reply-to will be used automatically.",
+                  "value": {
+                    "to": "user@example.com",
+                    "template": "clx123abc456",
+                    "data": {
+                      "firstName": "John",
+                      "lastName": "Doe",
+                      "resetCode": {
+                        "value": "ABC123",
+                        "persistent": false
+                      }
+                    }
+                  }
+                },
+                "withTemplateOverride": {
+                  "summary": "Using template with overrides",
+                  "description": "You can override template values by providing subject, body, from, or reply fields. This example overrides the template's subject line.",
+                  "value": {
+                    "to": "user@example.com",
+                    "template": "clx123abc456",
+                    "subject": "Custom Subject Override",
+                    "data": {
+                      "firstName": "Jane"
+                    }
+                  }
+                },
+                "marketingEmail": {
+                  "summary": "Marketing email (set subscribed: true)",
+                  "value": {
+                    "to": "user@example.com",
+                    "subject": "Weekly Newsletter",
+                    "body": "<h1>This Week's Updates</h1>",
+                    "subscribed": true
+                  }
+                },
+                "withAttachment": {
+                  "summary": "Email with PDF attachment",
+                  "value": {
+                    "to": "user@example.com",
+                    "subject": "Your Invoice",
+                    "body": "<h1>Invoice Attached</h1><p>Please find your invoice attached.</p>",
+                    "attachments": [
+                      {
+                        "filename": "invoice.pdf",
+                        "content": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL...",
+                        "contentType": "application/pdf"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email queued successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "emails": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "contact": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "email": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "email": {
+                                "type": "string",
+                                "description": "Plunk email record ID. Use this to correlate webhook events (which include this ID as 'emailId' in the event data) with your send requests."
+                              }
+                            }
+                          }
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "emails": [
+                      {
+                        "contact": {
+                          "id": "cnt_abc123",
+                          "email": "user@example.com"
+                        },
+                        "email": "ac32f08e-c6b9-45d3-9824-a73dff1e3bbf"
+                      }
+                    ],
+                    "timestamp": "2025-01-15T10:30:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/track": {
+      "post": {
+        "tags": ["Public API"],
+        "summary": "Track event",
+        "description": "Track an event for a contact. Automatically creates or upserts the contact, then records the event. Tracked events can be used as workflow triggers, segment filters, and audience filters.\n\n**Reserved event names** (rejected with `VALIDATION_ERROR` and code `reserved_event`): anything matching `email.*`, `contact.subscribed`, `contact.unsubscribed`, `segment.<slug>.entry`, `segment.<slug>.exit`. These are emitted by Plunk itself.\n\n**No idempotency**: re-tracking the same event creates a new event record.",
+        "operationId": "trackEvent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "event"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Contact email. The contact is auto-created if it doesn't exist."
+                  },
+                  "event": {
+                    "type": "string",
+                    "description": "Event name. Cannot match the reserved patterns above."
+                  },
+                  "subscribed": {
+                    "type": "boolean",
+                    "description": "Subscription state to apply to the contact. **New** contacts default to subscribed (`true`). **Existing** contacts keep their current state unless you pass an explicit value here. Pass `false` to track an event without resubscribing an unsubscribed contact."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Contact data and one-off event variables. Persistent values (primitives, plain objects) are saved on the contact and become available as template variables. Pass `{ value, persistent: false }` for one-shot variables that should not be stored on the contact (e.g. order IDs, transaction details). `null` deletes a field. Empty strings are ignored. Reserved keys are filtered out — see the contacts concept page."
+                  }
+                }
+              },
+              "example": {
+                "email": "user@example.com",
+                "event": "purchase",
+                "data": {
+                  "product": "Premium Plan",
+                  "amount": 99.0
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event tracked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "contact": {
+                          "type": "string",
+                          "description": "Contact ID"
+                        },
+                        "event": {
+                          "type": "string",
+                          "description": "Event ID"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/verify": {
+      "post": {
+        "tags": ["Public API"],
+        "summary": "Verify email address",
+        "description": "Verify an email address for validity, check if it's from a disposable domain or personal email provider, verify MX records, and detect potential typos with suggestions.",
+        "operationId": "verifyEmail",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email address to verify"
+                  }
+                }
+              },
+              "examples": {
+                "validEmail": {
+                  "summary": "Valid email address",
+                  "value": {
+                    "email": "user@gmail.com"
+                  }
+                },
+                "typoEmail": {
+                  "summary": "Email with potential typo",
+                  "value": {
+                    "email": "user@gmial.com"
+                  }
+                },
+                "disposableEmail": {
+                  "summary": "Disposable email address",
+                  "value": {
+                    "email": "user@tempmail.com"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email verification completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Always true for successful requests"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "format": "email",
+                          "description": "Email address that was verified"
+                        },
+                        "valid": {
+                          "type": "boolean",
+                          "description": "Whether the email appears to be valid overall"
+                        },
+                        "isDisposable": {
+                          "type": "boolean",
+                          "description": "Whether the email is from a disposable/temporary email domain"
+                        },
+                        "isAlias": {
+                          "type": "boolean",
+                          "description": "Whether the email is from a forwarding/alias service"
+                        },
+                        "isTypo": {
+                          "type": "boolean",
+                          "description": "Whether a potential typo was detected in the email address"
+                        },
+                        "isPlusAddressed": {
+                          "type": "boolean",
+                          "description": "Whether the email uses plus addressing (contains a + in the local part)"
+                        },
+                        "isPersonalEmail": {
+                          "type": "boolean",
+                          "description": "Whether the email is from a personal/free email provider (Gmail, Hotmail, Yahoo, etc.)"
+                        },
+                        "domainExists": {
+                          "type": "boolean",
+                          "description": "Whether the domain exists in DNS (has NS records)"
+                        },
+                        "hasWebsite": {
+                          "type": "boolean",
+                          "description": "Whether the domain has a website (has DNS A or AAAA records) - informational only"
+                        },
+                        "hasMxRecords": {
+                          "type": "boolean",
+                          "description": "Whether the domain has MX records configured for email delivery"
+                        },
+                        "suggestedEmail": {
+                          "type": "string",
+                          "format": "email",
+                          "description": "Suggested correction if a typo was detected (optional)",
+                          "nullable": true
+                        },
+                        "reasons": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Array of human-readable reasons describing the verification results"
+                        }
+                      },
+                      "required": [
+                        "email",
+                        "valid",
+                        "isDisposable",
+                        "isAlias",
+                        "isTypo",
+                        "isPlusAddressed",
+                        "isPersonalEmail",
+                        "domainExists",
+                        "hasWebsite",
+                        "hasMxRecords",
+                        "reasons"
+                      ]
+                    }
+                  }
+                },
+                "examples": {
+                  "validEmail": {
+                    "summary": "Valid email",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "email": "user@gmail.com",
+                        "valid": true,
+                        "isDisposable": false,
+                        "isAlias": false,
+                        "isTypo": false,
+                        "isPlusAddressed": false,
+                        "isPersonalEmail": true,
+                        "domainExists": true,
+                        "hasWebsite": true,
+                        "hasMxRecords": true,
+                        "reasons": ["Email appears to be valid"]
+                      }
+                    }
+                  },
+                  "typoDetected": {
+                    "summary": "Email with typo detected",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "email": "user@gmial.com",
+                        "valid": false,
+                        "isDisposable": false,
+                        "isAlias": false,
+                        "isTypo": true,
+                        "isPlusAddressed": false,
+                        "isPersonalEmail": false,
+                        "domainExists": false,
+                        "hasWebsite": false,
+                        "hasMxRecords": false,
+                        "suggestedEmail": "user@gmail.com",
+                        "reasons": [
+                          "Possible typo detected, did you mean gmail.com?",
+                          "Domain does not exist (no nameservers found)"
+                        ]
+                      }
+                    }
+                  },
+                  "disposableEmail": {
+                    "summary": "Disposable email detected",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "email": "user@tempmail.com",
+                        "valid": true,
+                        "isDisposable": true,
+                        "isAlias": false,
+                        "isTypo": false,
+                        "isPlusAddressed": false,
+                        "isPersonalEmail": false,
+                        "domainExists": true,
+                        "hasWebsite": true,
+                        "hasMxRecords": true,
+                        "reasons": ["Email appears to be valid"]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid email format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "List contacts",
+        "description": "Get a paginated list of contacts with cursor-based pagination.",
+        "operationId": "listContacts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive substring match on email."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of contacts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Contact"
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Cursor for the next page. Pass this back as the `cursor` query parameter to fetch the next page."
+                    },
+                    "hasMore": {
+                      "type": "boolean"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "Total count. Only populated on the first page (when no `cursor` is supplied); subsequent pages return `0` to avoid the recount cost."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Contacts"],
+        "summary": "Create or update contact",
+        "description": "Create a new contact or update existing (upsert by email)",
+        "operationId": "createContact",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "subscribed": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "example": {
+                "email": "user@example.com",
+                "subscribed": true,
+                "data": {
+                  "firstName": "John",
+                  "lastName": "Doe",
+                  "plan": "premium"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contact updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Contact"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "_meta": {
+                          "type": "object",
+                          "properties": {
+                            "isNew": {
+                              "type": "boolean"
+                            },
+                            "isUpdate": {
+                              "type": "boolean"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Contact created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Contact"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "_meta": {
+                          "type": "object",
+                          "properties": {
+                            "isNew": {
+                              "type": "boolean"
+                            },
+                            "isUpdate": {
+                              "type": "boolean"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts/{id}": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "Get contact",
+        "description": "Get a single contact by ID",
+        "operationId": "getContact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contact details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Contact not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Contacts"],
+        "summary": "Update contact",
+        "description": "Update an existing contact's email, subscription state, or `data` fields.",
+        "operationId": "updateContact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Change the contact's email address. Returns 409 if another contact in the project already uses this email."
+                  },
+                  "subscribed": {
+                    "type": "boolean",
+                    "description": "Update subscription state. Flipping this fires `contact.subscribed` or `contact.unsubscribed`."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Patch contact data. `null` deletes a key, empty strings are ignored, primitives are stored. Reserved keys are silently filtered out."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contact updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An existing contact already uses the email you're trying to set."
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Contacts"],
+        "summary": "Delete contact",
+        "description": "Permanently delete a contact",
+        "operationId": "deleteContact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Contact deleted successfully (no content returned)"
+          },
+          "404": {
+            "description": "Contact not found"
+          }
+        }
+      }
+    },
+    "/templates": {
+      "get": {
+        "tags": ["Templates"],
+        "summary": "List templates",
+        "description": "Get a paginated list of email templates",
+        "operationId": "listTemplates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["TRANSACTIONAL", "MARKETING"]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Template"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Templates"],
+        "summary": "Create template",
+        "description": "Create a new email template",
+        "operationId": "createTemplate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "subject", "body", "type"],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["TRANSACTIONAL", "MARKETING"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/campaigns": {
+      "get": {
+        "tags": ["Campaigns"],
+        "summary": "List campaigns",
+        "description": "Get a paginated list of email campaigns",
+        "operationId": "listCampaigns",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["DRAFT", "SCHEDULED", "SENDING", "SENT"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of campaigns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "campaigns": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Campaign"
+                      }
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Campaigns"],
+        "summary": "Create campaign",
+        "description": "Create a new email campaign",
+        "operationId": "createCampaign",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "subject", "body", "from", "audienceType"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Campaign name"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Campaign description"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Email subject line"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "HTML email body"
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Sender email address (must be from verified domain)"
+                  },
+                  "fromName": {
+                    "type": "string",
+                    "description": "Sender name"
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Reply-to email address"
+                  },
+                  "audienceType": {
+                    "type": "string",
+                    "enum": ["ALL", "SEGMENT", "FILTERED"],
+                    "description": "Target audience type"
+                  },
+                  "segmentId": {
+                    "type": "string",
+                    "description": "Segment ID (required if audienceType is SEGMENT)"
+                  },
+                  "audienceFilter": {
+                    "type": "object",
+                    "description": "Filter conditions (required if audienceType is FILTERED)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campaign created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Campaign"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/campaigns/{id}/send": {
+      "post": {
+        "tags": ["Campaigns"],
+        "summary": "Send or schedule campaign",
+        "description": "Send a campaign immediately or schedule for future delivery",
+        "operationId": "sendCampaign",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheduledFor": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "ISO 8601 timestamp for when to send the campaign. Omit or set to null for immediate send."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campaign scheduled/sending"
+          }
+        }
+      }
+    },
+    "/segments": {
+      "get": {
+        "tags": ["Segments"],
+        "summary": "List segments",
+        "description": "Get all audience segments",
+        "operationId": "listSegments",
+        "responses": {
+          "200": {
+            "description": "List of segments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Segment"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Segments"],
+        "summary": "Create segment",
+        "description": "Create a new audience segment",
+        "operationId": "createSegment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "filters"],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "filters": {
+                    "type": "object",
+                    "description": "Filter conditions"
+                  },
+                  "trackMembership": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              },
+              "example": {
+                "name": "Premium Users",
+                "filters": {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "data.plan",
+                      "operator": "equals",
+                      "value": "premium"
+                    }
+                  ]
+                },
+                "trackMembership": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Segment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Segment"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Public API",
+      "description": "Public API endpoints for sending emails and tracking events"
+    },
+    {
+      "name": "Contacts",
+      "description": "Contact management operations"
+    },
+    {
+      "name": "Templates",
+      "description": "Email template management"
+    },
+    {
+      "name": "Campaigns",
+      "description": "Email campaign management"
+    },
+    {
+      "name": "Segments",
+      "description": "Audience segmentation"
+    }
+  ]
+}

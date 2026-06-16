@@ -1,0 +1,77 @@
+# Dependencies
+node_modules
+**/node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+# Patterns without a leading `**/` only match the build-context root, NOT
+# nested directories. In this monorepo the actual outputs live under
+# apps/*/{dist,.next,.turbo} and packages/*/{dist,.turbo}; without `**/`
+# any stale local builds (from running `yarn dev` or `yarn build` on the
+# host) get copied into the image and override the freshly-built outputs,
+# producing silently broken builds (MODULE_NOT_FOUND for whatever the stale
+# bundle still references).
+**/dist
+**/.next
+**/.turbo
+**/build
+**/out
+
+# Development
+.env
+.env*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage
+.nyc_output
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.test.jsx
+**/*.spec.ts
+**/*.spec.tsx
+**/*.spec.js
+**/*.spec.jsx
+test/
+vitest.config.ts
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Documentation (not needed in image)
+*.md
+!README.md
+
+# Docker
+Dockerfile*
+docker
+!docker/nginx
+!docker/*.sh
+.dockerignore
+
+# Misc
+.cursor
+.eslintcache
+.cache
+tmp
+temp

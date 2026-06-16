@@ -1,0 +1,45 @@
+{
+  "pages": {
+    "unsubscribe": {
+      "title": "Wypisz się",
+      "description": "Przykro nam, że odchodzisz. Czy na pewno chcesz wypisać {email} z otrzymywania wiadomości?",
+      "button": "Wypisz się",
+      "buttonLoading": "Wypisywanie...",
+      "managePreferences": "Zarządzaj preferencjami zamiast tego",
+      "successTitle": "Wypisano",
+      "successDescription": "{email} został wypisany. Nie będziesz już otrzymywać od nas wiadomości.",
+      "changedMind": "Zmieniłeś(-aś) zdanie?",
+      "subscribeAgain": "Zapisz się ponownie"
+    },
+    "subscribe": {
+      "title": "Zapisz się na aktualizacje",
+      "description": "Czy chcesz zapisać {email} do otrzymywania wiadomości?",
+      "button": "Zapisz się",
+      "buttonLoading": "Zapisywanie...",
+      "successTitle": "Zapisano!",
+      "successDescription": "{email} jest teraz zapisany do otrzymywania od nas wiadomości."
+    },
+    "manage": {
+      "title": "Zarządzaj preferencjami",
+      "description": "Zarządzaj preferencjami e-mail dla adresu {email}",
+      "subscriptionLabel": "Subskrypcja e-mail",
+      "subscribedStatus": "Obecnie jesteś zapisany do otrzymywania wiadomości",
+      "unsubscribedStatus": "Obecnie jesteś wypisany z otrzymywania wiadomości",
+      "subscribedSuccess": "Pomyślnie zapisano!",
+      "unsubscribedSuccess": "Pomyślnie wypisano!",
+      "unsubscribeCompletely": "Wypisz się całkowicie",
+      "subscribeToEmails": "Zapisz się na e-maile",
+      "disclaimer": "Ta strona pozwala zarządzać preferencjami e-mail. Status subskrypcji jest aktualizowany w czasie rzeczywistym."
+    },
+    "common": {
+      "loading": "Ładowanie...",
+      "error": "Błąd"
+    }
+  },
+  "email": {
+    "footer": {
+      "unsubscribeText": "Otrzymujesz tę wiadomość, ponieważ wyraziłeś(-aś) zgodę na otrzymywanie wiadomości od {projectName}. Jeśli nie chcesz już otrzymywać takich wiadomości, prosimy",
+      "updatePreferences": "zaktualizuj swoje preferencje"
+    }
+  }
+}

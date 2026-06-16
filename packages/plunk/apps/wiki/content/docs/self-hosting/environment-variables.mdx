@@ -1,0 +1,163 @@
+---
+title: Environment Variables
+description: Configuration reference
+---
+
+## Security & Database
+
+| Variable       | Required | Description                                                                  | Example                                           |
+| -------------- | -------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
+| `JWT_SECRET`          | Yes      | Secret key used to sign JWT tokens. Generate with `openssl rand -base64 32`. | `s3cr3t...`                                       |
+| `DB_PASSWORD`         | Yes      | PostgreSQL database password. Used by the Docker Compose setup.              | `changeme123`                                     |
+| `DATABASE_URL`        | Yes      | Full PostgreSQL connection string used by the application at runtime (typically through PgBouncer). Auto-configured in Docker. | `postgresql://plunk:password@postgres:5432/plunk` |
+| `DIRECT_DATABASE_URL` | Yes      | Direct PostgreSQL connection string used by Prisma migrations. Must bypass any connection pooler. Auto-configured in Docker.   | `postgresql://plunk:password@postgres:5432/plunk` |
+| `REDIS_URL`           | Yes      | Redis connection string.                                                     | `redis://redis:6379`                              |
+| `NODE_ENV`            | No       | Application environment. Set to `production` for production deployments.     | `production`                                      |
+| `PORT`                | No       | Port the API server listens on.                                              | `8080` (default)                                  |
+
+## URLs & Domains
+
+Set your subdomains here. The application automatically derives all internal and client-side URLs from these at container startup — you don't need to set `*_URI` or `NEXT_PUBLIC_*` variables manually.
+
+| Variable           | Required | Description                                                                                                          | Example               |
+| ------------------ | -------- | -------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `API_DOMAIN`       | Yes      | Subdomain for the API server.                                                                                        | `api.yourdomain.com`  |
+| `DASHBOARD_DOMAIN` | Yes      | Subdomain for the dashboard app.                                                                                     | `app.yourdomain.com`  |
+| `LANDING_DOMAIN`   | Yes      | Subdomain for the landing page.                                                                                      | `www.yourdomain.com`  |
+| `WIKI_DOMAIN`      | Yes      | Subdomain for the documentation site.                                                                                | `docs.yourdomain.com` |
+| `USE_HTTPS`        | No       | Set to `true` when running behind a TLS-terminating reverse proxy. Used to construct URLs with the correct protocol. | `false` (default)     |
+
+## AWS SES
+
+| Variable                            | Required | Description                                                                                                                                      | Example                                         |
+| ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `AWS_SES_REGION`                    | Yes      | AWS region where SES is configured.                                                                                                              | `us-east-1`                                     |
+| `AWS_SES_ACCESS_KEY_ID`             | Yes      | AWS access key ID with SES send permissions.                                                                                                     | `AKIA...`                                       |
+| `AWS_SES_SECRET_ACCESS_KEY`         | Yes      | AWS secret access key for SES.                                                                                                                   | `wJalr...`                                      |
+| `SES_CONFIGURATION_SET`             | No       | SES configuration set name used for open/click tracking.                                                                                         | `plunk-configuration-set` (default)             |
+| `SES_CONFIGURATION_SET_NO_TRACKING` | No       | A second SES configuration set without tracking. When set, projects can toggle email tracking on/off. If omitted, the tracking toggle is hidden. | `plunk-no-tracking-configuration-set` (default) |
+| `MAIL_FROM_SUBDOMAIN`               | No       | Subdomain prefix used when constructing the MAIL FROM hostname for a verified domain (e.g. with default `plunk` and domain `yourdomain.com`, the MAIL FROM is `plunk.yourdomain.com`). Override when the default subdomain is already in use (e.g. by an R2/CDN custom domain), since the MAIL FROM hostname needs MX + TXT records that can't coexist with a CNAME. | `plunk`                                         |
+
+## Storage (Minio)
+
+The bundled Docker setup includes Minio with defaults that work out of the box. Only change these when connecting to an external S3-compatible bucket.
+
+| Variable               | Required | Description                                                        | Default             |
+| ---------------------- | -------- | ------------------------------------------------------------------ | ------------------- |
+| `MINIO_ROOT_USER`      | No       | Minio root username (Docker Compose only).                         | `plunk`             |
+| `MINIO_ROOT_PASSWORD`  | No       | Minio root password (Docker Compose only).                         | `plunkminiopass`    |
+| `MINIO_API_PORT`       | No       | Port for the Minio API (Docker Compose only).                      | `9000`              |
+| `MINIO_CONSOLE_PORT`   | No       | Port for the Minio console UI (Docker Compose only).               | `9001`              |
+| `S3_ENDPOINT`          | No       | S3 or Minio endpoint URL.                                          | `http://minio:9000` |
+| `S3_ACCESS_KEY_ID`     | No       | S3 or Minio access key.                                            | —                   |
+| `S3_ACCESS_KEY_SECRET` | No       | S3 or Minio secret key.                                            | —                   |
+| `S3_BUCKET`            | No       | Bucket name for file uploads.                                      | `uploads`           |
+| `S3_PUBLIC_URL`        | No       | Publicly accessible base URL for stored files.                     | —                   |
+| `S3_FORCE_PATH_STYLE`  | No       | Use path-style URLs instead of virtual-hosted. Required for Minio. | `true`              |
+
+## Attachments
+
+Plunk supports attachments on transactional emails. AWS SES caps total message size at 40 MB; the defaults below leave headroom but can be tuned for your use case.
+
+| Variable                 | Required | Description                                                                                                              | Default |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `MAX_ATTACHMENT_SIZE_MB` | No       | Maximum total attachment size in megabytes per email. Hard upper bound enforced by AWS SES is 40 MB.                     | `10`    |
+| `MAX_ATTACHMENTS_COUNT`  | No       | Maximum number of attachments per email.                                                                                 | `10`    |
+
+## SMTP Server
+
+The optional SMTP relay lets you send emails through Plunk via the SMTP protocol.
+
+| Variable          | Required | Description                                                                                                                        | Default     |
+| ----------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `SMTP_DOMAIN`     | No       | SMTP relay domain. Required when using Traefik's `acme.json` with multiple certificates so the correct cert can be selected.       | `localhost` |
+| `SMTP_ENABLED`    | No       | Explicitly enable SMTP features in the UI. Automatically enabled when `SMTP_DOMAIN` is set to a non-localhost value in production. | `false`     |
+| `PORT_SECURE`     | No       | SMTPS port (implicit TLS).                                                                                                         | `465`       |
+| `PORT_SUBMISSION` | No       | SMTP submission port (STARTTLS).                                                                                                   | `587`       |
+| `MAX_RECIPIENTS`  | No       | Maximum number of recipients per email.                                                                                            | `5`         |
+
+## OAuth
+
+Enables social login. Register an OAuth app with each provider and add the credentials here.
+
+| Variable              | Required | Description                     |
+| --------------------- | -------- | ------------------------------- |
+| `GITHUB_OAUTH_CLIENT` | No       | GitHub OAuth app client ID.     |
+| `GITHUB_OAUTH_SECRET` | No       | GitHub OAuth app client secret. |
+| `GOOGLE_OAUTH_CLIENT` | No       | Google OAuth app client ID.     |
+| `GOOGLE_OAUTH_SECRET` | No       | Google OAuth app client secret. |
+
+## Stripe
+
+Required if you want to enable billing features. All Stripe variables must be set together for billing to activate.
+
+| Variable                   | Required | Description                                         |
+| -------------------------- | -------- | --------------------------------------------------- | ------------------ |
+| `STRIPE_SK`                | No       | Stripe secret key.                                  |
+| `STRIPE_WEBHOOK_SECRET`    | No       | Stripe webhook signing secret for verifying events. |
+| `STRIPE_PRICE_ONBOARDING`  | No       | Stripe price ID for the one-time onboarding fee.    |
+| `STRIPE_PRICE_EMAIL_USAGE` | No       | Stripe price ID for metered pay-per-email usage.    |
+| `STRIPE_METER_EVENT_NAME`  | No       | Stripe meter event name.                            | `emails` (default) |
+
+## Platform Emails
+
+When configured, Plunk will send email notifications to users for critical events (e.g. project disabled, billing limits reached). Without these, only ntfy notifications are sent.
+
+| Variable             | Required | Description                                                | Example                  |
+| -------------------- | -------- | ---------------------------------------------------------- | ------------------------ |
+| `PLUNK_API_KEY`      | No       | API key for a Plunk instance to send transactional emails. | `pk_...`                 |
+| `PLUNK_FROM_ADDRESS` | No       | From address used for platform notification emails.        | `noreply@yourdomain.com` |
+
+## Notifications (ntfy)
+
+Plunk bundles a self-hosted [ntfy](https://ntfy.sh) server for internal system notifications.
+
+| Variable    | Required | Description                                                                         | Default                           |
+| ----------- | -------- | ----------------------------------------------------------------------------------- | --------------------------------- |
+| `NTFY_PORT` | No       | Port for the ntfy web UI (Docker Compose only).                                     | `8080`                            |
+| `NTFY_URL`  | No       | ntfy topic URL. Change this to use an external ntfy.sh server or your own instance. | `http://ntfy/plunk-notifications` |
+
+## User Management
+
+| Variable                 | Required | Description                                                                                                                 | Default |
+| ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `DISABLE_SIGNUPS`        | No       | When `true`, the signup endpoint rejects new registrations. Useful for private instances.                                   | `false` |
+| `VERIFY_EMAIL_ON_SIGNUP` | No       | When `true`, validates emails on signup — checks for disposable domains, plus-addressing, domain existence, and MX records. | `false` |
+
+## Security
+
+| Variable                      | Required | Description                                                                                                                                                | Default |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `AUTO_PROJECT_DISABLE`        | No       | When `true`, projects are automatically suspended when bounce or complaint rate thresholds are exceeded. Set to `false` to manage project status manually. | `true`  |
+| `EMAIL_RATE_LIMIT_PER_SECOND` | No       | Override the email sending rate limit. If not set, Plunk automatically fetches the quota from your AWS SES account.                                        | —       |
+| `EMAIL_WORKER_CONCURRENCY`    | No       | Number of emails the worker processes in parallel. When unset, derived from the effective rate limit so a higher SES quota scales throughput automatically. | —       |
+| `EMAIL_WORKER_MAX_CONCURRENCY`| No       | Upper bound applied to the auto-derived worker concurrency. Raise this only after sizing the Prisma connection pool accordingly.                            | `50`    |
+
+## Advanced
+
+Variables for unusual deployments. The defaults work for the standard Docker Compose setup — only change these if you know you need to.
+
+| Variable     | Required | Description                                                                                                              | Default |
+| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `NGINX_PORT` | No       | Host port the bundled Nginx reverse proxy binds to. Override when port 80/443 is already in use on the host (e.g. running behind another reverse proxy that forwards to a different port). | `80`    |
+
+## Phishing Detection
+
+Plunk can use AI to detect and block phishing emails before they're sent. Requires an [OpenRouter](https://openrouter.ai) API key.
+
+| Variable                         | Required | Description                                                                                       | Default                    |
+| -------------------------------- | -------- | ------------------------------------------------------------------------------------------------- | -------------------------- |
+| `OPENROUTER_API_KEY`             | No       | OpenRouter API key. When set, enables AI-powered phishing detection.                              | —                          |
+| `OPENROUTER_MODEL`               | No       | LLM model to use for content analysis. See [OpenRouter models](https://openrouter.ai/models).     | `anthropic/claude-3-haiku` |
+| `PHISHING_DETECTION_SAMPLE_RATE` | No       | Percentage of emails to check (0.0-1.0). For example, `0.1` means 10% of emails are analyzed.     | `0.1` (10%)                |
+| `PHISHING_CONFIDENCE_THRESHOLD`  | No       | Minimum confidence percentage (0-100) required to auto-disable a project from a single detection. | `95`                       |
+| `PHISHING_CUMULATIVE_THRESHOLD`  | No       | Number of phishing detections within the time window required to auto-disable a project.          | `3`                        |
+| `PHISHING_CUMULATIVE_WINDOW_MS`  | No       | Time window in milliseconds for cumulative phishing tracking.                                     | `3600000` (1 hour)         |
+
+**How it works:**
+
+- A random sample of emails (controlled by `PHISHING_DETECTION_SAMPLE_RATE`) are analyzed by the LLM for phishing content.
+- Projects are automatically disabled if **either**:
+  1. A single email is detected with confidence ≥ `PHISHING_CONFIDENCE_THRESHOLD`, **or**
+  2. `PHISHING_CUMULATIVE_THRESHOLD` or more emails are flagged within the `PHISHING_CUMULATIVE_WINDOW_MS` time window.
+- Detection history is stored in Redis and shared across all worker instances.

@@ -1,0 +1,267 @@
+{
+  "version": "6.0.0",
+  "id": "ly.img.text",
+  "assets": [
+    {
+      "id": "ly.img.text.title",
+      "label": {
+        "en": "Title",
+        "de": "Titel"
+      },
+      "tags": {
+        "en": [],
+        "de": []
+      },
+      "payload": {
+        "typeface": {
+          "name": "Roboto",
+          "fonts": [
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Black.ttf",
+              "subFamily": "Black",
+              "weight": "heavy"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-BlackItalic.ttf",
+              "subFamily": "Black Italic",
+              "weight": "heavy",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Bold.ttf",
+              "subFamily": "Bold",
+              "weight": "bold"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-BoldItalic.ttf",
+              "subFamily": "Bold Italic",
+              "weight": "bold",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Italic.ttf",
+              "subFamily": "Italic",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Light.ttf",
+              "subFamily": "Light",
+              "weight": "light"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-LightItalic.ttf",
+              "subFamily": "Light Italic",
+              "weight": "light",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Medium.ttf",
+              "subFamily": "Medium",
+              "weight": "medium"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-MediumItalic.ttf",
+              "subFamily": "Medium Italic",
+              "weight": "medium",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Regular.ttf",
+              "subFamily": "Regular"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Thin.ttf",
+              "subFamily": "Thin",
+              "weight": "thin"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-ThinItalic.ttf",
+              "subFamily": "Thin Italic",
+              "weight": "thin",
+              "style": "italic"
+            }
+          ]
+        }
+      },
+      "meta": {
+        "fontScale": 2,
+        "blockType": "//ly.img.ubq/text",
+        "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Bold.ttf"
+      }
+    },
+    {
+      "id": "ly.img.text.headline",
+      "label": {
+        "en": "Headline",
+        "de": "Überschrift"
+      },
+      "tags": {
+        "en": [],
+        "de": []
+      },
+      "payload": {
+        "typeface": {
+          "name": "Roboto",
+          "fonts": [
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Black.ttf",
+              "subFamily": "Black",
+              "weight": "heavy"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-BlackItalic.ttf",
+              "subFamily": "Black Italic",
+              "weight": "heavy",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Bold.ttf",
+              "subFamily": "Bold",
+              "weight": "bold"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-BoldItalic.ttf",
+              "subFamily": "Bold Italic",
+              "weight": "bold",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Italic.ttf",
+              "subFamily": "Italic",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Light.ttf",
+              "subFamily": "Light",
+              "weight": "light"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-LightItalic.ttf",
+              "subFamily": "Light Italic",
+              "weight": "light",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Medium.ttf",
+              "subFamily": "Medium",
+              "weight": "medium"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-MediumItalic.ttf",
+              "subFamily": "Medium Italic",
+              "weight": "medium",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Regular.ttf",
+              "subFamily": "Regular"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Thin.ttf",
+              "subFamily": "Thin",
+              "weight": "thin"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-ThinItalic.ttf",
+              "subFamily": "Thin Italic",
+              "weight": "thin",
+              "style": "italic"
+            }
+          ]
+        }
+      },
+      "meta": {
+        "fontScale": 1.4,
+        "blockType": "//ly.img.ubq/text",
+        "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Medium.ttf"
+      }
+    },
+    {
+      "id": "ly.img.text.paragraph",
+      "label": {
+        "en": "Paragraph",
+        "de": "Absatz"
+      },
+      "tags": {
+        "en": [],
+        "de": []
+      },
+      "payload": {
+        "typeface": {
+          "name": "Roboto",
+          "fonts": [
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Black.ttf",
+              "subFamily": "Black",
+              "weight": "heavy"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-BlackItalic.ttf",
+              "subFamily": "Black Italic",
+              "weight": "heavy",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Bold.ttf",
+              "subFamily": "Bold",
+              "weight": "bold"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-BoldItalic.ttf",
+              "subFamily": "Bold Italic",
+              "weight": "bold",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Italic.ttf",
+              "subFamily": "Italic",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Light.ttf",
+              "subFamily": "Light",
+              "weight": "light"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-LightItalic.ttf",
+              "subFamily": "Light Italic",
+              "weight": "light",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Medium.ttf",
+              "subFamily": "Medium",
+              "weight": "medium"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-MediumItalic.ttf",
+              "subFamily": "Medium Italic",
+              "weight": "medium",
+              "style": "italic"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Regular.ttf",
+              "subFamily": "Regular"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Thin.ttf",
+              "subFamily": "Thin",
+              "weight": "thin"
+            },
+            {
+              "uri": "{{base_url}}/ly.img.text/fonts/Roboto-ThinItalic.ttf",
+              "subFamily": "Thin Italic",
+              "weight": "thin",
+              "style": "italic"
+            }
+          ]
+        }
+      },
+      "meta": {
+        "fontScale": 1,
+        "blockType": "//ly.img.ubq/text",
+        "uri": "{{base_url}}/ly.img.text/fonts/Roboto-Regular.ttf"
+      }
+    }
+  ]
+}
