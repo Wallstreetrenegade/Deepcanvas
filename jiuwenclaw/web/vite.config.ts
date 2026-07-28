@@ -504,14 +504,14 @@ export default defineConfig({
     port: 5173,  // 默认端口
     strictPort: true,  // 强制使用 5173 端口
     proxy: {
-      '/mail': {
-        target: 'http://127.0.0.1:3000',
-        changeOrigin: true,
-      },
       '/mail-api': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
         rewrite: (proxyPath) => proxyPath.replace(/^\/mail-api/, '') || '/',
+      },
+      '/mail': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
       },
       '/api': {
         target: 'http://127.0.0.1:19000',

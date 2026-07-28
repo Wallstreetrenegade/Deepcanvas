@@ -13,7 +13,6 @@ import { InputArea } from './InputArea';
 import { SubtaskProgress } from './SubtaskProgress';
 import { InlineQuestionCard } from './InlineQuestionCard';
 import { HistoryPagerBar } from './HistoryPagerBar';
-import { useAssistantName } from '../../hooks/useAssistantName';
 import './ChatPanel.css';
 
 export interface ChatHistoryPagerProps {
@@ -75,7 +74,6 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const { messages, isThinking } = useChatStore();
-  const assistantName = useAssistantName('Chappie');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prependScrollSnapRef = useRef<{ sh: number; st: number } | null>(null);
@@ -210,9 +208,6 @@ export function ChatPanel({
           </>
         ) : (
           <div className="chat-welcome">
-            <div className="chat-welcome__mark" aria-label={t('chat.welcomeLogoAlt')}>
-              {assistantName}
-            </div>
             <h2 className="chat-welcome__heading">{t('chat.welcomeHeading')}</h2>
             <p className="chat-welcome__subtext">
               {t('chat.welcomeSubtext')}

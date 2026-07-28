@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "cd jiuwenclaw/web && npm run dev",
     "mail:install": "cd packages/plunk && yarn install",
-    "mail:dev": "cd packages/plunk && yarn workspace web dev",
+    "mail:services": "cd packages/plunk && docker compose -f docker/docker-compose.dev.yml up -d",
+    "mail:db": "node scripts/migrate-plunk-db.mjs",
+    "mail:api": "node scripts/start-plunk-api-dev.mjs",
+    "mail:dev": "node scripts/start-plunk-web-dev.mjs",
     "mail:build": "cd packages/plunk && yarn workspace web build",
     "open-design:install": "cd packages/open-design && pnpm install",
     "open-design:daemon": "cd packages/open-design && pnpm exec od daemon",

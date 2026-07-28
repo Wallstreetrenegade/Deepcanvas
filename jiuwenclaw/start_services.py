@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import os
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -108,6 +109,9 @@ def _build_optional_sidecars() -> list[ServiceCommand]:
             )
         )
     if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=True) and OPEN_DESIGN_DIR.exists():
+        if shutil.which("pnpm") is None:
+            print("[start_services] skipping open-design-daemon: pnpm is not installed or not on PATH")
+            return commands
         commands.append(
             (
                 "open-design-daemon",

@@ -233,3 +233,86 @@
 .toolpanel-status-card__heartbeat-link:hover {
   opacity: 1;
 }
+
+.toolpanel-skills {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.toolpanel-section-header {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 11px;
+  font-weight: 700;
+  justify-content: space-between;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+}
+
+.toolpanel-mini-action {
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0.45rem 0.55rem;
+}
+
+.toolpanel-mini-action:hover {
+  color: var(--text);
+}
+
+.toolpanel-empty {
+  align-items: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted);
+  display: flex;
+  flex: 1;
+  font-size: var(--font-size-sm);
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.toolpanel-skill-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.toolpanel-skill-item {
+  background: color-mix(in oklab, var(--card) 88%, black);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem;
+}
+
+.toolpanel-skill-item__name {
+  color: var(--text-strong);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolpanel-skill-item__description {
+  color: var(--muted);
+  display: -webkit-box;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}

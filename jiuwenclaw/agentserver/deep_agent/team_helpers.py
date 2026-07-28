@@ -1,8 +1,8 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+﻿# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 
-"""Team Agent 流式处理辅助方法.
+"""Team Agent æµå¼å¤„ç†è¾…åŠ©æ–¹æ³•.
 
-从 interface_deep.py 中提取的 Team 模式核心处理逻辑。
+ä»Ž interface_deep.py ä¸­æå–çš„ Team æ¨¡å¼æ ¸å¿ƒå¤„ç†é€»è¾‘ã€‚
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from typing import Any, AsyncIterator
 
 from openjiuwen.core.runner import Runner
 from openjiuwen.harness import DeepAgent
+from openjiuwen.agent_teams.agent.team_agent import TeamAgent
 
 from jiuwenclaw.agentserver.team import get_team_manager
 from jiuwenclaw.agentserver.team.monitor_handler import TeamMonitorHandler
@@ -25,13 +26,13 @@ _pending_waiters: dict[str, list[tuple[str, asyncio.Queue]]] = {}
 
 
 def _broadcast_event(session_id: str, event: dict) -> None:
-    """广播事件到所有等待的请求队列."""
+    """å¹¿æ’­äº‹ä»¶åˆ°æ‰€æœ‰ç­‰å¾…çš„è¯·æ±‚é˜Ÿåˆ—."""
     waiters = _pending_waiters.get(session_id, [])
     for request_id, queue in waiters:
         try:
             queue.put_nowait(dict(event))
         except Exception:
-            logger.debug("[TeamHelpers] 广播事件失败: session_id=%s request_id=%s", session_id, request_id)
+            logger.debug("[TeamHelpers] å¹¿æ’­äº‹ä»¶å¤±è´¥: session_id=%s request_id=%s", session_id, request_id)
 
 
 async def process_team_message_stream(
@@ -39,15 +40,15 @@ async def process_team_message_stream(
     inputs: dict[str, Any],
     deep_agent: DeepAgent,
 ) -> AsyncIterator[AgentResponseChunk]:
-    """处理 Team 模式的流式消息.
+    """å¤„ç† Team æ¨¡å¼çš„æµå¼æ¶ˆæ¯.
 
     Args:
-        request: AgentRequest 对象
-        inputs: 已构建好的输入字典
-        deep_agent: DeepAgent 实例
+        request: AgentRequest å¯¹è±¡
+        inputs: å·²æž„å»ºå¥½çš„è¾“å…¥å­—å…¸
+        deep_agent: DeepAgent å®žä¾‹
 
     Yields:
-        AgentResponseChunk 流式响应块
+        AgentResponseChunk æµå¼å“åº”å—
     """
     session_id = request.session_id or "default"
     rid = request.request_id
@@ -57,7 +58,7 @@ async def process_team_message_stream(
 
     try:
         if deep_agent is None:
-            raise RuntimeError("DeepAgent 未初始化")
+            raise RuntimeError("DeepAgent æœªåˆå§‹åŒ–")
 
         team_agent = await team_manager.get_or_create_team(
             session_id=session_id,
@@ -96,18 +97,20 @@ async def process_team_message_stream(
                 _pending_waiters[session_id] = []
             _pending_waiters[session_id].append((rid, request_queue))
             logger.info(
-                "[TeamHelpers] 首次请求,启动stream: session_id=%s, query=%s",
+                "[TeamHelpers] é¦–æ¬¡è¯·æ±‚,å¯åŠ¨stream: session_id=%s, query=%s",
                 session_id,
                 query[:50] if query else "",
             )
 
-            monitor_handler = TeamMonitorHandler(team_agent, session_id)
-            try:
-                await monitor_handler.start()
-                team_manager.register_monitor(session_id, monitor_handler)
-                logger.info("[TeamHelpers] Monitor 启动成功: session_id=%s", session_id)
-            except Exception as e:
-                logger.warning("[TeamHelpers] Monitor 启动失败，将继续运行: %s", e)
+            monitor_handler = None
+            if isinstance(team_agent, TeamAgent):
+                monitor_handler = TeamMonitorHandler(team_agent, session_id)
+                try:
+                    await monitor_handler.start()
+                    team_manager.register_monitor(session_id, monitor_handler)
+                    logger.info("[TeamHelpers] Monitor å¯åŠ¨æˆåŠŸ: session_id=%s", session_id)
+                except Exception as e:
+                    logger.warning("[TeamHelpers] Monitor å¯åŠ¨å¤±è´¥ï¼Œå°†ç»§ç»­è¿è¡Œ: %s", e)
 
             stream_task = asyncio.create_task(
                 _consume_stream_with_query(
@@ -118,7 +121,7 @@ async def process_team_message_stream(
             )
             team_manager.register_stream_task(session_id, stream_task)
 
-            if monitor_handler.is_running:
+            if monitor_handler is not None and monitor_handler.is_running:
                 asyncio.create_task(
                     _consume_monitor_events(
                         session_id,
@@ -127,7 +130,7 @@ async def process_team_message_stream(
                 )
         else:
             logger.info(
-                "[TeamHelpers] 后续请求,调用interact: session_id=%s, query=%s",
+                "[TeamHelpers] åŽç»­è¯·æ±‚,è°ƒç”¨interact: session_id=%s, query=%s",
                 session_id,
                 query[:100] if query else "",
             )
@@ -138,7 +141,7 @@ async def process_team_message_stream(
                     yield AgentResponseChunk(
                         request_id=rid,
                         channel_id=cid,
-                        payload={"event_type": "chat.error", "error": "interact失败"},
+                        payload={"event_type": "chat.error", "error": "interactå¤±è´¥"},
                         is_complete=False,
                     )
                     yield AgentResponseChunk(
@@ -185,13 +188,13 @@ async def process_team_message_stream(
 
         except asyncio.CancelledError:
             logger.info(
-                "[TeamHelpers] 事件流被取消: session_id=%s request_id=%s",
+                "[TeamHelpers] äº‹ä»¶æµè¢«å–æ¶ˆ: session_id=%s request_id=%s",
                 session_id, rid,
             )
             raise
         except Exception as exc:
             logger.exception(
-                "[TeamHelpers] 事件流异常: session_id=%s error=%s",
+                "[TeamHelpers] äº‹ä»¶æµå¼‚å¸¸: session_id=%s error=%s",
                 session_id,
                 exc,
             )
@@ -218,7 +221,7 @@ async def process_team_message_stream(
 
             if not _pending_waiters.get(session_id, []):
                 _pending_waiters.pop(session_id, None)
-                logger.info("[TeamHelpers] Session 无等待者，清理: session_id=%s", session_id)
+                logger.info("[TeamHelpers] Session æ— ç­‰å¾…è€…ï¼Œæ¸…ç†: session_id=%s", session_id)
 
 
 async def _consume_stream_with_query(
@@ -226,10 +229,10 @@ async def _consume_stream_with_query(
     team_agent: Any,
     initial_query: str,
 ) -> None:
-    """后台持续消费Team的stream，并广播事件到所有等待者."""
+    """åŽå°æŒç»­æ¶ˆè´¹Teamçš„streamï¼Œå¹¶å¹¿æ’­äº‹ä»¶åˆ°æ‰€æœ‰ç­‰å¾…è€…."""
     try:
         logger.info(
-            "[TeamHelpers] Stream协程开始: session_id=%s, initial_query=%s",
+            "[TeamHelpers] Streamåç¨‹å¼€å§‹: session_id=%s, initial_query=%s",
             session_id,
             initial_query[:50] if initial_query else "",
         )
@@ -244,19 +247,19 @@ async def _consume_stream_with_query(
                 _broadcast_event(session_id, parsed)
 
         logger.warning(
-            "[TeamHelpers] Stream意外结束: session_id=%s",
+            "[TeamHelpers] Streamæ„å¤–ç»“æŸ: session_id=%s",
             session_id,
         )
 
     except asyncio.CancelledError:
         logger.info(
-            "[TeamHelpers] Stream协程被取消: session_id=%s",
+            "[TeamHelpers] Streamåç¨‹è¢«å–æ¶ˆ: session_id=%s",
             session_id,
         )
         raise
     except Exception as e:
-        logger.error(
-            "[TeamHelpers] Stream协程异常: session_id=%s, error=%s",
+        logger.exception(
+            "[TeamHelpers] Streamåç¨‹å¼‚å¸¸: session_id=%s, error=%s",
             session_id,
             e,
         )
@@ -275,10 +278,10 @@ async def _consume_monitor_events(
     session_id: str,
     monitor_handler: TeamMonitorHandler,
 ) -> None:
-    """后台持续消费Monitor的事件，并广播到所有等待者."""
+    """åŽå°æŒç»­æ¶ˆè´¹Monitorçš„äº‹ä»¶ï¼Œå¹¶å¹¿æ’­åˆ°æ‰€æœ‰ç­‰å¾…è€…."""
     try:
         logger.info(
-            "[TeamHelpers] Monitor事件协程开始: session_id=%s",
+            "[TeamHelpers] Monitoräº‹ä»¶åç¨‹å¼€å§‹: session_id=%s",
             session_id,
         )
 
@@ -286,19 +289,19 @@ async def _consume_monitor_events(
             _broadcast_event(session_id, event)
 
         logger.info(
-            "[TeamHelpers] Monitor事件协程结束: session_id=%s",
+            "[TeamHelpers] Monitoräº‹ä»¶åç¨‹ç»“æŸ: session_id=%s",
             session_id,
         )
 
     except asyncio.CancelledError:
         logger.info(
-            "[TeamHelpers] Monitor事件协程被取消: session_id=%s",
+            "[TeamHelpers] Monitoräº‹ä»¶åç¨‹è¢«å–æ¶ˆ: session_id=%s",
             session_id,
         )
         raise
     except Exception as e:
         logger.error(
-            "[TeamHelpers] Monitor事件协程异常: session_id=%s, error=%s",
+            "[TeamHelpers] Monitoräº‹ä»¶åç¨‹å¼‚å¸¸: session_id=%s, error=%s",
             session_id,
             e,
         )
@@ -308,7 +311,7 @@ async def teardown_team_runtime(
     team_monitors: dict[str, Any],
     team_agents: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """清理所有 Team 运行时."""
+    """æ¸…ç†æ‰€æœ‰ Team è¿è¡Œæ—¶."""
     for session_id, monitor in list(team_monitors.items()):
         try:
             await monitor.stop()

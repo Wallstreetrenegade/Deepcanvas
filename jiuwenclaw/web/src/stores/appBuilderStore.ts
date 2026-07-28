@@ -5,7 +5,7 @@ import type { WebRequestOptions } from '../types/websocket';
 
 // Must mirror jiuwenclaw/pi_agent/app_builder.py
 
-export type PreviewMode = 'preview' | 'code' | 'projects';
+export type PreviewMode = 'preview' | 'code' | 'projects' | 'templates';
 
 export interface ChatMessage {
   id: string;
@@ -58,6 +58,55 @@ function summarizeBuilderState(state: AppBuilderSnapshot) {
     lastChatRole: state.chat[state.chat.length - 1]?.role ?? '',
     lastError: state.lastError ?? null,
   });
+}
+
+function stripBuildStudioAutoContext(content: string): string {
+  const trimmed = (content || '').trim();
+  if (!trimmed.toLowerCase().startsWith('build studio auto mode:')) {
+    return trimmed;
+  }
+  const parts = trimmed.split(/\nUser request:\s*/i);
+  return parts.length > 1 ? parts.slice(1).join('\nUser request:\n').trim() : trimmed;
+}
+
+function inferVisibleBuildMode(message: string): string {
+  const text = message.toLowerCase();
+  if (/\b(dashboard|analytics|kpi|metric|admin|reporting|crm|pipeline|command center|ops center|live artifact|data console)\b/.test(text)) {
+    return 'live dashboard';
+  }
+  if (/\b(slide deck|deck|presentation|pitch|weekly update|magazine deck|ppt)\b/.test(text)) {
+    return 'slide deck';
+  }
+  if (/\b(hyperframes?|motion graphics?|storyboard|animation|video)\b/.test(text)) {
+    return text.includes('hyperframe') ? 'HyperFrames motion piece' : 'video artifact';
+  }
+  if (/\b(image|photo|picture|mockup|visual asset|edit this image)\b/.test(text)) {
+    return 'image artifact';
+  }
+  if (/\b(marketing|campaign|cro|copywriting|copy|seo|ads?|ad creative|funnel|launch|email sequence|social content|pricing|positioning|sales enablement|lead magnet|landing angle)\b/.test(text)) {
+    return 'marketing system';
+  }
+  if (/\b(app|tool|portal|workspace)\b/.test(text)) {
+    return 'interactive app';
+  }
+  return 'prototype';
+}
+
+function optimisticBuilderMessage(message: string): string {
+  const mode = inferVisibleBuildMode(message);
+  if (mode === 'live dashboard') {
+    return "Got it. I’ll build this as a real live dashboard, not a landing page: app shell, KPI cards, charts, filters, pipeline/activity views, and useful interactions in the Preview.";
+  }
+  if (mode === 'slide deck') {
+    return "Got it. I’ll build this as a proper slide deck with presentation structure, navigation, and a polished visual system.";
+  }
+  if (mode === 'image artifact') {
+    return "Got it. I’ll treat this as an image-focused artifact and keep the result previewable so we can keep iterating from chat.";
+  }
+  if (mode.includes('video') || mode.includes('HyperFrames')) {
+    return "Got it. I’ll shape this as a motion artifact with frames/timeline structure rather than a static page.";
+  }
+  return "Got it. I’ll build the first version in the Preview, then we can refine it together from here.";
 }
 
 export interface AppBuilderCommandResult {
@@ -135,6 +184,42 @@ export interface AppBuilderPlan {
   steps: AppBuilderPlanStep[];
 }
 
+export interface OpenDesignCatalogItem {
+  id: string;
+  name: string;
+  title?: string;
+  description?: string;
+  tags?: string[];
+  mode?: string | null;
+  scenario?: string | null;
+  surface?: string | null;
+  preview?: { type?: string; image?: string; poster?: string; video?: string; gif?: string; entry?: string } | null;
+  bakedPreview?: { poster?: string; video?: string; holdMs?: number } | null;
+  exampleOutputs?: Array<{ path?: string; title?: string }>;
+  author?: string;
+  source?: string;
+  sourceKind?: string;
+  installed?: boolean | null;
+}
+
+export interface OpenDesignStatus {
+  available: boolean;
+  baseUrl: string;
+  checkedAt: string;
+  message: string;
+  checks?: Record<string, boolean>;
+  nodePath?: string | null;
+  pnpmPath?: string | null;
+  health?: unknown;
+  catalog?: {
+    skills?: OpenDesignCatalogItem[];
+    plugins?: OpenDesignCatalogItem[];
+    designSystems?: OpenDesignCatalogItem[];
+    mediaModels?: OpenDesignCatalogItem[];
+  };
+  catalogErrors?: Record<string, string>;
+}
+
 export interface AppBuilderShipReport {
   startedAt: string;
   finishedAt: string;
@@ -159,6 +244,7 @@ interface RpcResponse {
   screenshot?: AppBuilderScreenshotResult;
   artifact?: AppBuilderArtifact;
   plan?: AppBuilderPlan;
+  openDesign?: OpenDesignStatus;
 }
 
 interface AppBuilderState extends AppBuilderSnapshot {
@@ -170,10 +256,12 @@ interface AppBuilderState extends AppBuilderSnapshot {
   runningQa: boolean;
   creatingArtifact: boolean;
   shipping: boolean;
+  loadingOpenDesign: boolean;
   error: string | null;
   backgroundNotice: string | null;
   projects: ProjectSummary[];
   lastShipReport: AppBuilderShipReport | null;
+  openDesign: OpenDesignStatus | null;
 
   loadState: () => Promise<void>;
   refreshState: () => Promise<void>;
@@ -200,6 +288,8 @@ interface AppBuilderState extends AppBuilderSnapshot {
   downloadZip: () => Promise<AppBuilderArtifact | null>;
   createPlan: (prompt: string) => Promise<AppBuilderPlan | null>;
   shipProject: () => Promise<AppBuilderShipReport | null>;
+  loadOpenDesignStatus: () => Promise<OpenDesignStatus | null>;
+  loadOpenDesignCatalog: () => Promise<OpenDesignStatus | null>;
 
   // Projects library
   listProjects: () => Promise<void>;
@@ -253,8 +343,7 @@ export const useAppBuilderStore = create<AppBuilderState>((set, get) => {
     if (!resp) return null;
     const snap = resp.state;
     if (snap) {
-      const forceCodeMode = method === 'app.builder.get_state'
-        || method === 'app.builder.reset_project'
+      const forceCodeMode = method === 'app.builder.reset_project'
         || method === 'app.builder.load_project'
         || method === 'app.builder.new_project';
       const patch: Partial<AppBuilderState> = {
@@ -265,6 +354,9 @@ export const useAppBuilderStore = create<AppBuilderState>((set, get) => {
       };
       if (Array.isArray(resp.projects)) {
         patch.projects = resp.projects;
+      }
+      if (resp.openDesign) {
+        patch.openDesign = resp.openDesign;
       }
       set(patch);
     }
@@ -281,10 +373,12 @@ export const useAppBuilderStore = create<AppBuilderState>((set, get) => {
     runningQa: false,
     creatingArtifact: false,
     shipping: false,
+    loadingOpenDesign: false,
     error: null,
     backgroundNotice: null,
     projects: [],
     lastShipReport: null,
+    openDesign: null,
 
     loadState: async () => {
       if (get().isLoading) return;
@@ -305,6 +399,33 @@ export const useAppBuilderStore = create<AppBuilderState>((set, get) => {
       }
     },
     clearError: () => set({ error: null, backgroundNotice: null }),
+
+    loadOpenDesignStatus: async () => {
+      if (get().loadingOpenDesign) return get().openDesign;
+      set({ loadingOpenDesign: true });
+      try {
+        const resp = await callAndApply('app.builder.open_design_status', {}, { timeoutMs: 12000 });
+        return resp?.openDesign ?? get().openDesign ?? null;
+      } catch (err) {
+        set({ error: err instanceof Error ? err.message : String(err) });
+        return null;
+      } finally {
+        set({ loadingOpenDesign: false });
+      }
+    },
+    loadOpenDesignCatalog: async () => {
+      if (get().loadingOpenDesign) return get().openDesign;
+      set({ loadingOpenDesign: true });
+      try {
+        const resp = await callAndApply('app.builder.open_design_catalog', {}, { timeoutMs: 20000 });
+        return resp?.openDesign ?? get().openDesign ?? null;
+      } catch (err) {
+        set({ error: err instanceof Error ? err.message : String(err) });
+        return null;
+      } finally {
+        set({ loadingOpenDesign: false });
+      }
+    },
 
     setActiveFile: async (path) => {
       try { await callAndApply('app.builder.set_active_file', { path }); }
@@ -336,7 +457,27 @@ export const useAppBuilderStore = create<AppBuilderState>((set, get) => {
     },
     sendChat: async (message) => {
       if (!message.trim() || get().sending) return;
-      set({ sending: true, error: null, backgroundNotice: null });
+      const visibleMessage = stripBuildStudioAutoContext(message);
+      const now = new Date().toISOString();
+      const optimisticUser: ChatMessage = {
+        id: `local-user-${Date.now()}`,
+        role: 'user',
+        content: visibleMessage,
+        at: now,
+      };
+      const optimisticAssistant: ChatMessage = {
+        id: `local-builder-${Date.now()}`,
+        role: 'assistant',
+        content: optimisticBuilderMessage(visibleMessage),
+        at: now,
+      };
+      set((state) => ({
+        sending: true,
+        busy: true,
+        error: null,
+        backgroundNotice: null,
+        chat: [...state.chat, optimisticUser, optimisticAssistant],
+      }));
       try {
         await callAndApply('app.builder.chat', { message }, { timeoutMs: 300000 });
         set({ backgroundNotice: null });
@@ -377,7 +518,7 @@ export const useAppBuilderStore = create<AppBuilderState>((set, get) => {
             });
           }
         } else {
-          set({ error: messageText, backgroundNotice: null });
+          set({ error: messageText, backgroundNotice: null, busy: false });
         }
       } finally {
         set({ sending: false });

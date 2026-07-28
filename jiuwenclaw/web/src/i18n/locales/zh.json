@@ -63,9 +63,9 @@
     },
     "newSession": "新建会话",
     "sessionCreated": "已新建会话",
-    "modePlan": "规划模式",
-    "modeAgent": "性能模式",
-    "modeAgentTeam": "集群模式",
+    "modePlan": "Main",
+    "modeAgent": "Fast",
+    "modeAgentTeam": "Teams",
     "recording": "正在录音...（松开按钮自动发送）",
     "waitingTasks": "等待任务",
     "waitingTasksCount": "等待任务 ({{count}})",
@@ -102,10 +102,21 @@
     "blankBody": "这个分页保留给后续模块。",
     "tabs": {
       "tasks": "Tasks",
-      "connections": "Connections",
+      "connections": "Skills",
+      "skills": "Skills",
+      "teams": "Teams",
       "features": "Features",
       "blankOne": "Connections",
       "blankTwo": "Features"
+    },
+    "skills": {
+      "title": "Ready skills",
+      "loading": "Loading skills...",
+      "empty": "No active skills yet"
+    },
+    "teams": {
+      "emptyTitle": "Teams",
+      "emptyBody": "Switch to Teams when you want multiple assistants working together."
     },
     "featuresPanel": {
       "chat": {
@@ -516,7 +527,7 @@
       "model": { "label": "模型配置", "hint": "模型服务与鉴权参数" },
       "embed": { "label": "Embed配置", "hint": "Embed 服务与鉴权参数" },
       "featuresApi": { "label": "功能配置", "hint": "供 PI 功能智能体与 Build Studio 使用的提供商、模型、Base URL 与 API Key" },
-      "thirdParty": { "label": "第三方服务配置", "hint": "API Key 配置" },
+      "thirdParty": { "label": "第三方服务配置", "hint": "Build Studio 媒体生成、搜索与集成所需的 API Key" },
       "freeSearch": { "label": "免费搜索引擎配置", "hint": "控制搜索引擎启用和企业内网华为代理" },
       "evolution": { "label": "自演进配置", "hint": "Skills 在线自演进参数" },
       "contextEngine": { "label": "上下文压缩", "hint": "控制对话上下文是否启用压缩" },

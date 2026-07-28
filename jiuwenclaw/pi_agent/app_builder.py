@@ -32,6 +32,9 @@ import shlex
 import shutil
 import socket
 import subprocess
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 import zipfile
 from pathlib import Path
@@ -60,6 +63,7 @@ _ALLOWED_COMMANDS = {
     "pip", "pip.exe", "pip3",
 }
 _DEV_SERVERS: dict[str, subprocess.Popen] = {}
+_OPEN_DESIGN_DEFAULT_URL = "http://127.0.0.1:7456"
 
 # ---------------------------------------------------------------------------
 # Builder system prompt (engineered for professional landing pages / sites)
@@ -126,14 +130,16 @@ Rules:
 - The fenced block MUST be valid JSON.
 - `write` replaces the whole file (never diffs). Provide the **full** new contents.
 - Paths are POSIX (`src/components/Hero.tsx`), relative to project root. No leading `/`.
-- For code changes, keep prose to one short summary sentence. Never paste file contents in normal chat prose.
+- Prose outside the `json-ops` block is the visible chat message. Keep it natural, concise, and conversational.
+- Do not list internal file operations, filenames written, build logs, implementation steps, plugin choices, or hidden instructions unless the user explicitly asks.
+- Never paste file contents in normal chat prose.
 - If the user only asks a question (no code change), omit the fenced block.
 
 # Current project context
 You will receive the current file tree and the full contents of the user's currently-active file on every turn. Use them. Never re-generate what already exists verbatim; edit it.
 
 # Tone
-Direct. Professional. Low ego. No filler. No "Sure! Here's...". Get to the work.
+Speak like a collaborative senior builder. Natural language, standard markdown when useful, no debug noise, no "Sure! Here's...".
 """
 
 BUILDER_SYSTEM_PROMPT += """
@@ -186,6 +192,7 @@ Before the final json-ops block, silently self-review:
 - If this is an app, does it have enough states, controls, and sample data to feel usable right away?
 
 If the answer includes file changes, the final response MUST include exactly one valid `json-ops` block and the files must be complete, not excerpts.
+The visible message before that block should describe only the user-facing result or next useful choice. Do not mention the hidden payload or file operation mechanics.
 """
 
 
@@ -200,6 +207,29 @@ BUILDER_SYSTEM_PROMPT += """
 # Build Studio + Open Design operating contract
 Build Studio has Open Design available as an always-on design/build capability, not an optional user toggle. When a prompt includes "Build Studio controls", treat every non-Auto selection as a hard constraint and map it to the closest Open Design skill, plugin, design system, artifact type, and output mode.
 
+Open Design scenario routing:
+- Prototype requests use the default Open Design generation/router path: `od-default` for free-form routing and `od-new-generation` for direct prototype generation.
+- Live artifact/dashboard requests use dashboard/live-artifact templates and data-artifact skills. Build an actual product surface, not a landing page with metrics.
+- Slide deck requests use deck/presentation templates and slide skills. Use `example-pptx-html-fidelity-audit` when exporting, comparing, or repairing PPTX fidelity.
+- Image requests use `od-media-generation` plus the configured image provider from Configuration. The actual image must render in Preview.
+- Video requests use `od-media-generation` plus the configured video provider from Configuration. The actual playable video or motion preview must render in Preview.
+- HyperFrames requests use the local HTML-video/HyperFrames workflow and templates. Render the composition or frame sequence in Preview.
+- Marketing requests use the marketing skill family first: product-marketing, copywriting, CRO, ad-creative, ads, SEO/content, analytics, pricing, launch, email, social, sales-enablement, screenshots-marketing, and marketing-psychology. Build previewable campaign assets, pages, decks, emails, social cards, or plans.
+- React/Next.js handoff requests use `od-react-export` or `od-nextjs-export`.
+- Figma migration requests use `od-figma-migration`.
+- Existing-code/repo migration requests use `od-code-migration`.
+
+Artifact router, highest priority:
+- The user's plain-language request overrides the selected chip. If they ask for a dashboard, analytics console, admin view, command center, CRM view, operations panel, KPI board, or "live dashboard", build a live artifact/dashboard even when the selected chip says Prototype.
+- Dashboard/live artifact means an actual product UI, not a landing page with stats. Do not include marketing heroes, pricing, testimonials, logo clouds, or FAQ unless the user explicitly asks.
+- Deck means slides with slide navigation and presentation structure, not a scrolling article.
+- Image means an image-generation/editing workflow or previewable image artifact, not a web page about images.
+- Video/HyperFrames means motion/storyboard/frame output with timeline or frame structure, not a static page about video.
+- Image, Video, and HyperFrames outputs must render inside Build Studio Preview. Never hand off the output as only a URL or markdown link.
+- If a media provider generates bytes, write/import the generated file into the project and create or update a preview surface that displays it. Images should render as images; videos should render in a playable `<video>`; HyperFrames should render the composition or motion surface.
+- If real model-generated media cannot run because a provider key is missing, say that naturally in prose and do not fake a generated media file.
+- Prototype means web/desktop/mobile product screens or landing pages only when the user's wording actually asks for those.
+
 Use Open Design when it materially improves the artifact:
 - Call `open_design_capability_snapshot` before complex builds, and whenever the user selected a non-Auto Artifact, Design Systems, Plugin, Output, or Skill control.
 - Use `open_design_api_request` to inspect `/api/skills`, `/api/plugins`, `/api/design-systems`, or project resources when you need the live catalog instead of guessing.
@@ -207,9 +237,10 @@ Use Open Design when it materially improves the artifact:
 
 Artifact quality bars:
 - Slide decks: build a real deck, usually 8-15 slides, with navigation, keyboard controls, progress, clear slide hierarchy, speaker-note style content or presenter cues, printable/export-friendly CSS, and a coherent visual system.
-- Dashboards: include sidebar/top nav, KPI cards, charts or visualizations, filters, realistic sample data, empty/loading/error states, and useful interactions.
+- Dashboards/live artifacts: build a full-screen application surface with sidebar or command nav, top bar, KPI cards, chart panels, filters/date ranges/search, a data table or pipeline board, alerts/anomaly area, drilldown/detail state, realistic sample data, empty/loading/error states, and useful interactions. It should feel closer to a polished Linear/Stripe/Datadog/Retool product screen than to a marketing site.
 - Apps: include real state, realistic data models, validation, accessibility, responsive behavior, and clear run instructions when dependencies are used.
 - Landing pages: deliver a complete premium marketing system with specific copy, strong art direction, real sections, conversion flow, interactions, and polished responsive details.
+- Marketing artifacts: deliver something usable in Preview, not only advice. Depending on the request, create a campaign workspace, conversion-focused landing page, ad creative set, email sequence, social carousel, sales one-pager, launch plan deck, SEO page plan with templates, pricing/paywall screen, or measurement dashboard. Use direct-response clarity, customer-aware copy, concrete offers, objections, proof, channel-fit creative, and next-step execution detail.
 
 Senior engineer acceptance bar:
 - No placeholder-only pages, no thin demos, no generic one-screen HTML.
@@ -235,8 +266,8 @@ def _llm_ready() -> bool:
 
 
 def _quality_retry_enabled() -> bool:
-    flag = os.environ.get("APP_BUILDER_ENABLE_QUALITY_RETRY", "").strip().lower()
-    return flag in {"1", "true", "yes", "on"}
+    flag = os.environ.get("APP_BUILDER_ENABLE_QUALITY_RETRY", "1").strip().lower()
+    return flag not in {"0", "false", "no", "off"}
 
 
 def _builder_image_provider() -> str:
@@ -321,8 +352,11 @@ async def _maybe_generate_builder_image_asset(state: dict[str, Any], user_text: 
     provider = _builder_image_provider()
     api_key = _builder_image_key(provider)
     if not api_key:
-        raise ImageGenError(
-            "Image generation is not configured for App Builder. Set a Vision/OpenAI image API key in Settings first."
+        return (
+            "## Media provider readiness\n"
+            "The user is asking for image generation or image editing, but no image provider key is configured yet. "
+            "Do not fabricate a generated image. Reply naturally and tell the user to add an image provider key in "
+            "Configuration, such as OpenAI, ImageRouter, FAL.ai, OpenRouter, Nano Banana/Google, xAI/Grok, or a custom image API.\n\n"
         )
 
     model = _builder_image_model(provider)
@@ -364,12 +398,355 @@ def _default_build_plan() -> dict[str, Any] | None:
     return None
 
 
+def _open_design_base_url() -> str:
+    return (
+        os.environ.get("OPEN_DESIGN_DAEMON_URL")
+        or os.environ.get("OD_DAEMON_URL")
+        or _OPEN_DESIGN_DEFAULT_URL
+    ).strip().rstrip("/") or _OPEN_DESIGN_DEFAULT_URL
+
+
+def _open_design_repo_dir() -> Path:
+    return Path(__file__).resolve().parents[2] / "packages" / "open-design"
+
+
+def _tcp_available(base_url: str, timeout: float = 0.45) -> bool:
+    parsed = urllib.parse.urlparse(base_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _open_design_json(path: str, timeout: float = 3.0) -> Any:
+    base = _open_design_base_url()
+    if not path.startswith("/"):
+        path = f"/{path}"
+    req = urllib.request.Request(
+        f"{base}{path}",
+        headers={"Accept": "application/json"},
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - local daemon URL only by default.
+        raw = resp.read(24_000_000)
+    if not raw:
+        return None
+    return json.loads(raw.decode("utf-8", errors="replace"))
+
+
+def _list_from_catalog_payload(payload: Any, keys: tuple[str, ...]) -> list[Any]:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+        data = payload.get("data")
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for key in keys:
+                value = data.get(key)
+                if isinstance(value, list):
+                    return value
+    return []
+
+
+def _catalog_item(item: Any, fallback_prefix: str, index: int) -> dict[str, Any] | None:
+    if isinstance(item, str):
+        label = item.strip()
+        return {"id": label, "name": label, "description": "", "tags": []} if label else None
+    if not isinstance(item, dict):
+        return None
+    manifest = item.get("manifest") if isinstance(item.get("manifest"), dict) else {}
+    od = manifest.get("od") if isinstance(manifest.get("od"), dict) else {}
+    use_case = od.get("useCase") if isinstance(od.get("useCase"), dict) else {}
+    author = manifest.get("author") if isinstance(manifest.get("author"), dict) else {}
+    raw_id = item.get("id") or item.get("slug") or manifest.get("name") or item.get("name") or item.get("title") or f"{fallback_prefix}-{index}"
+    raw_name = item.get("name") or manifest.get("name") or item.get("title") or manifest.get("title") or item.get("label") or raw_id
+    raw_title = item.get("title") or manifest.get("title") or raw_name
+    item_id = str(raw_id or "").strip()
+    name = str(raw_name or "").strip()
+    if not item_id and not name:
+        return None
+    tags = item.get("tags") or manifest.get("tags") or item.get("categories") or []
+    if not isinstance(tags, list):
+        tags = []
+    return {
+        "id": item_id or name,
+        "name": name or item_id,
+        "title": str(raw_title or name or item_id),
+        "description": str(item.get("description") or manifest.get("description") or item.get("summary") or "").strip(),
+        "tags": [str(tag) for tag in tags[:24]],
+        "mode": od.get("mode") or item.get("mode") or item.get("kind") or item.get("type"),
+        "scenario": od.get("scenario") or item.get("scenario"),
+        "surface": od.get("surface") or item.get("surface"),
+        "preview": od.get("preview") if isinstance(od.get("preview"), dict) else item.get("preview"),
+        "bakedPreview": od.get("bakedPreview") if isinstance(od.get("bakedPreview"), dict) else None,
+        "exampleOutputs": use_case.get("exampleOutputs") if isinstance(use_case.get("exampleOutputs"), list) else [],
+        "author": author.get("name") or item.get("author") or "",
+        "sourceKind": item.get("sourceKind") or "",
+        "source": item.get("sourceMarketplaceId") or item.get("sourceKind") or "",
+        "installed": item.get("installed"),
+    }
+
+
+def _normalize_catalog(payload: Any, keys: tuple[str, ...], prefix: str, limit: int = 520) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for idx, item in enumerate(_list_from_catalog_payload(payload, keys)):
+        normalized = _catalog_item(item, prefix, idx)
+        if not normalized:
+            continue
+        key = str(normalized["id"]).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(normalized)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _open_design_status(include_catalog: bool = False) -> dict[str, Any]:
+    base_url = _open_design_base_url()
+    repo_dir = _open_design_repo_dir()
+    node_path = shutil.which("node")
+    pnpm_path = shutil.which("pnpm")
+    checks = {
+        "repo": repo_dir.exists(),
+        "node": bool(node_path),
+        "pnpm": bool(pnpm_path),
+        "tcp": _tcp_available(base_url),
+    }
+    status: dict[str, Any] = {
+        "available": False,
+        "baseUrl": base_url,
+        "checkedAt": _now_iso(),
+        "checks": checks,
+        "nodePath": node_path,
+        "pnpmPath": pnpm_path,
+        "catalog": {"skills": [], "plugins": [], "designSystems": [], "mediaModels": []},
+        "message": "",
+    }
+    if not checks["repo"]:
+        status["message"] = "Open Design package is not present in this repo."
+        return status
+    if not checks["tcp"]:
+        if not checks["node"] or not checks["pnpm"]:
+            missing = [name for name in ("node", "pnpm") if not checks[name]]
+            status["message"] = f"Open Design daemon is not listening, and {', '.join(missing)} is missing from PATH for autostart."
+            return status
+        status["message"] = f"Open Design daemon is not listening at {base_url}."
+        return status
+    try:
+        health = _open_design_json("/api/health", timeout=2.0)
+        status["available"] = True
+        status["health"] = health
+        status["message"] = "Open Design daemon is connected."
+    except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError) as exc:
+        status["message"] = f"Open Design daemon did not return a healthy response: {exc}"
+        return status
+
+    if include_catalog:
+        catalog: dict[str, Any] = {}
+        endpoints = {
+            "skills": ("/api/skills", ("skills", "items")),
+            "plugins": ("/api/plugins", ("plugins", "items", "installed")),
+            "designSystems": ("/api/design-systems", ("designSystems", "design_systems", "systems", "items")),
+            "mediaModels": ("/api/media/models", ("models", "mediaModels", "items")),
+        }
+        for key, (path, payload_keys) in endpoints.items():
+            try:
+                catalog[key] = _normalize_catalog(_open_design_json(path, timeout=4.0), payload_keys, key)
+            except Exception as exc:  # noqa: BLE001
+                catalog[key] = []
+                status.setdefault("catalogErrors", {})[key] = str(exc)
+        status["catalog"] = catalog
+    return status
+
+
+def _open_design_catalog_hints(request: str, plain_request: str = "") -> str:
+    mode = _effective_project_mode(request, plain_request)
+    keywords_by_mode = {
+        "dashboard": ("dashboard", "live artifact", "analytics", "kpi", "chart", "admin", "data"),
+        "deck": ("deck", "presentation", "pitch", "weekly report", "slides", "ppt"),
+        "image": ("image", "infographic", "media generation", "visual"),
+        "motion": ("video", "hyperframes", "motion", "frame", "remotion"),
+        "landing": ("landing", "website", "web", "prototype"),
+        "marketing": ("marketing", "campaign", "cro", "copywriting", "copy", "seo", "ads", "ad creative", "funnel", "launch", "email", "social", "pricing", "positioning", "sales enablement", "lead magnet"),
+        "app": ("application", "web artifact", "frontend", "app"),
+    }
+    keywords = keywords_by_mode.get(mode)
+    if not keywords:
+        return ""
+    try:
+        status = _open_design_status(include_catalog=True)
+    except Exception as exc:  # noqa: BLE001
+        return f"## Open Design catalog hints\nOpen Design catalog lookup failed: {exc}\n\n"
+    if not status.get("available"):
+        return "## Open Design catalog hints\nOpen Design daemon is unavailable; use the built-in builder contract.\n\n"
+
+    def text_for(item: dict[str, Any]) -> str:
+        manifest = item.get("manifest") if isinstance(item.get("manifest"), dict) else {}
+        values = [
+            item.get("id"),
+            item.get("title"),
+            item.get("name"),
+            item.get("description"),
+            manifest.get("title"),
+            manifest.get("description"),
+        ]
+        return " ".join(str(v or "") for v in values).lower()
+
+    lines: list[str] = []
+    catalog = status.get("catalog") if isinstance(status.get("catalog"), dict) else {}
+    targeted_by_mode = {
+        "dashboard": ("od-new-generation",),
+        "deck": ("od-new-generation", "example-pptx-html-fidelity-audit"),
+        "image": ("od-media-generation",),
+        "motion": ("od-media-generation",),
+        "marketing": ("example-blog-post", "example-digital-eguide", "example-email-marketing", "example-social-carousel", "example-audio-jingle"),
+        "landing": ("od-default", "od-new-generation"),
+        "app": ("od-default", "od-new-generation"),
+        "generic": ("od-default",),
+    }
+    targeted_ids = targeted_by_mode.get(mode, ())
+    if targeted_ids:
+        plugins = catalog.get("plugins") if isinstance(catalog.get("plugins"), list) else []
+        exact_matches: list[str] = []
+        for plugin_id in targeted_ids:
+            for item in plugins:
+                if not isinstance(item, dict):
+                    continue
+                item_id = item.get("id") or item.get("name")
+                manifest = item.get("manifest") if isinstance(item.get("manifest"), dict) else {}
+                manifest_id = manifest.get("name") or manifest.get("id")
+                if item_id == plugin_id or manifest_id == plugin_id:
+                    title = item.get("title") or item.get("name") or item.get("id")
+                    scenario = (manifest.get("od") or {}).get("scenario") if isinstance(manifest.get("od"), dict) else None
+                    suffix = f" ({scenario})" if scenario else ""
+                    exact_matches.append(f"- `{plugin_id}` â€” {title}{suffix}")
+                    break
+        if exact_matches:
+            lines.append("### Primary Open Design scenario plugins\n" + "\n".join(exact_matches))
+
+    for label, key in (("plugins", "plugins"), ("skills", "skills"), ("design systems", "designSystems")):
+        items = catalog.get(key) if isinstance(catalog.get(key), list) else []
+        matches: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            haystack = text_for(item)
+            if any(keyword in haystack for keyword in keywords):
+                title = item.get("title") or item.get("name") or item.get("id")
+                item_id = item.get("id") or item.get("name") or title
+                matches.append(f"- `{item_id}` — {title}")
+            if len(matches) >= 8:
+                break
+        if matches:
+            lines.append(f"### Relevant Open Design {label}\n" + "\n".join(matches))
+    if not lines:
+        return ""
+    return (
+        "## Open Design catalog hints\n"
+        f"Inferred artifact mode: `{mode}`. Prefer these bundled Open Design references when shaping the artifact:\n"
+        + "\n\n".join(lines)
+        + "\n\n"
+    )
+
+
+def _configured_media_providers() -> dict[str, Any]:
+    try:
+        cfg = _open_design_json("/api/media/config", timeout=2.0)
+    except Exception as exc:  # noqa: BLE001
+        return {"available": False, "error": str(exc), "providers": {}}
+    providers = cfg.get("providers") if isinstance(cfg, dict) else {}
+    if not isinstance(providers, dict):
+        providers = {}
+    configured = {
+        provider_id: meta
+        for provider_id, meta in providers.items()
+        if isinstance(meta, dict) and bool(meta.get("configured"))
+    }
+    return {"available": True, "providers": configured}
+
+
+def _open_design_media_readiness(request: str, plain_request: str = "") -> str:
+    mode = _effective_project_mode(request, plain_request)
+    if mode not in {"image", "motion"}:
+        return ""
+    status = _configured_media_providers()
+    if not status.get("available"):
+        return (
+            "## Media provider readiness\n"
+            "Open Design media config could not be checked. If the user asks for image or video generation and generation fails, "
+            "reply naturally and tell them to add the needed provider key in Configuration.\n\n"
+        )
+    configured = status.get("providers") if isinstance(status.get("providers"), dict) else {}
+    image_priority = [
+        "openai",
+        "imagerouter",
+        "openrouter",
+        "fal",
+        "nanobanana",
+        "google",
+        "grok",
+        "custom-image",
+        "bfl",
+        "leonardo",
+        "replicate",
+        "aihubmix",
+    ]
+    video_priority = [
+        "hyperframes",
+        "fal",
+        "openrouter",
+        "imagerouter",
+        "grok",
+        "volcengine",
+        "google",
+        "kling",
+        "minimax",
+        "aihubmix",
+    ]
+    if mode == "image":
+        ready = [provider for provider in image_priority if provider in configured]
+        if ready:
+            return (
+                "## Media provider readiness\n"
+                f"Configured image providers available through Open Design: {', '.join(ready)}. "
+                "Use Open Design's media dispatcher for real image generation or editing when the request requires image bytes.\n\n"
+            )
+        return (
+            "## Media provider readiness\n"
+            "No image provider key is configured. Do not fake image generation. Reply naturally and tell the user to add an image provider key "
+            "in Configuration: OpenAI, ImageRouter, FAL.ai, OpenRouter, Nano Banana/Google, xAI/Grok, or Custom Image API.\n\n"
+        )
+    ready = [provider for provider in video_priority if provider == "hyperframes" or provider in configured]
+    if ready:
+        return (
+            "## Media provider readiness\n"
+            f"Configured video/motion providers available through Open Design: {', '.join(ready)}. "
+            "For HyperFrames, use the local HTML-to-motion workflow; for model-generated video, use Open Design's media dispatcher.\n\n"
+        )
+    return (
+        "## Media provider readiness\n"
+        "No video provider key is configured. HyperFrames can still produce local programmable motion, but model-generated video needs a provider key "
+        "in Configuration such as FAL.ai, OpenRouter, ImageRouter, xAI/Grok, Volcengine/Ark, Google/Veo, Kling, or MiniMax.\n\n"
+    )
+
+
 def _default_state() -> dict[str, Any]:
     workspace_id = uuid.uuid4().hex[:12]
     return {
         "files": {},
         "activeFile": "",
-        "previewMode": "code",  # 'preview' | 'code' | 'projects'
+        "previewMode": "code",  # 'preview' | 'code' | 'projects' | 'templates'
         "chat": [],
         "busy": False,
         "lastError": None,
@@ -652,9 +1029,13 @@ def _parse_command(command: Any, state: Optional[dict[str, Any]] = None, *, for_
         raise ValueError(f"command not allowed: {parts[0]}")
     if for_dev_server and not policy.get("allowDevServer", True):
         raise ValueError("dev server commands are disabled by policy")
-    if _is_package_install(parts) and not policy.get("allowPackageInstall", True):
+    package_install = _is_package_install(parts)
+    python_package_install = _is_python_package_install(parts)
+    if (package_install or python_package_install) and not policy.get("allowNetworkCommands", True):
+        raise ValueError("network/package commands are disabled by policy")
+    if package_install and not policy.get("allowPackageInstall", True):
         raise ValueError("package install commands are disabled by policy")
-    if _is_python_package_install(parts) and not policy.get("allowPythonPackageInstall", True):
+    if python_package_install and not policy.get("allowPythonPackageInstall", True):
         raise ValueError("Python package install commands are disabled by policy")
     if os.name == "nt" and executable in {"npm", "npx", "pnpm", "yarn"}:
         parts[0] = f"{parts[0]}.cmd"
@@ -979,7 +1360,7 @@ def _apply_ops(state: dict[str, Any], ops: list[dict[str, Any]]) -> list[str]:
     if first_written and not explicit_active:
         state["activeFile"] = first_written
     if applied:
-        state["previewMode"] = "code"
+        state["previewMode"] = "preview"
     return applied
 
 
@@ -1060,6 +1441,134 @@ def _extract_ops_block(text: str) -> tuple[str, Optional[dict[str, Any]], bool]:
     return text, None, False
 
 
+def _strip_build_studio_auto_context(text: str) -> str:
+    cleaned = (text or "").strip()
+    if not cleaned.lower().startswith("build studio auto mode:"):
+        return cleaned
+    parts = re.split(r"\nUser request:\s*", cleaned, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) == 2:
+        return parts[1].strip()
+    return cleaned
+
+
+def _extract_build_studio_mode_id(text: str) -> str:
+    match = re.search(r"^\s*-\s*Effective mode id:\s*([a-z0-9-]+)\s*\.?\s*$", text or "", re.IGNORECASE | re.MULTILINE)
+    if not match:
+        return ""
+    value = match.group(1).strip().lower()
+    return value if value in {"prototype", "live-artifact", "deck", "image", "video", "hyperframes", "marketing"} else ""
+
+
+def _selected_mode_to_project_mode(mode_id: str) -> str:
+    return {
+        "prototype": "landing",
+        "live-artifact": "dashboard",
+        "deck": "deck",
+        "image": "image",
+        "video": "motion",
+        "hyperframes": "motion",
+        "marketing": "marketing",
+    }.get(mode_id, "")
+
+
+def _effective_project_mode(raw_text: str, plain_text: str = "") -> str:
+    plain = plain_text or _strip_build_studio_auto_context(raw_text)
+    inferred = _infer_project_mode(plain)
+    if inferred != "generic":
+        return inferred
+    selected = _selected_mode_to_project_mode(_extract_build_studio_mode_id(raw_text))
+    return selected or inferred
+
+
+def _open_design_scenario_route(raw_text: str, plain_text: str = "") -> str:
+    plain = plain_text or _strip_build_studio_auto_context(raw_text)
+    mode = _effective_project_mode(raw_text, plain)
+    selected = _extract_build_studio_mode_id(raw_text)
+    lowered = plain.lower()
+    lines = [
+        "## Open Design scenario route",
+        f"Effective artifact mode: `{mode}`.",
+    ]
+    if selected:
+        lines.append(f"Selected Build Studio chip: `{selected}`.")
+    if re.search(r"\b(next\.?js|nextjs|export to next|next app)\b", lowered):
+        lines.append("- Handoff/export route: use `od-nextjs-export` when converting the current artifact to a Next.js project.")
+    if re.search(r"\b(react|export to react|react app)\b", lowered):
+        lines.append("- Handoff/export route: use `od-react-export` when converting the current artifact to React.")
+    if re.search(r"\b(figma|figjam)\b", lowered):
+        lines.append("- Migration route: use `od-figma-migration` for Figma extraction, token mapping, generation, and critique.")
+    if re.search(r"\b(repo|repository|codebase|migrate code|existing code|github)\b", lowered):
+        lines.append("- Migration route: use `od-code-migration` for importing, mapping design tokens, rewriting, testing, and handoff.")
+
+    if mode == "dashboard":
+        lines.extend([
+            "- Primary route: live artifact/dashboard generation.",
+            "- Use Open Design dashboard/data/report templates and skills when available; produce a real app shell with data views, not marketing sections.",
+        ])
+    elif mode == "deck":
+        lines.extend([
+            "- Primary route: deck/presentation templates and slide-generation skills.",
+            "- Use `example-pptx-html-fidelity-audit` only when the user asks to export, compare, audit, or repair PPTX fidelity.",
+        ])
+    elif mode == "image":
+        lines.extend([
+            "- Primary route: `od-media-generation`.",
+            "- Use the configured image provider from Open Design media config; render the generated or edited image in Preview.",
+        ])
+    elif mode == "motion":
+        if selected == "hyperframes" or "hyperframe" in lowered:
+            lines.extend([
+                "- Primary route: HTML-video/HyperFrames templates and local programmable motion.",
+                "- Render the frame sequence, composition, or motion surface in Preview; export/video generation can come after the previewable composition exists.",
+            ])
+        else:
+            lines.extend([
+                "- Primary route: `od-media-generation` for model video, with HTML-video/HyperFrames available for programmable motion.",
+                "- Render playable video or a motion preview in Preview.",
+            ])
+    elif mode == "marketing":
+        lines.extend([
+            "- Primary route: marketing skill family and marketing scenario templates.",
+            "- Prefer available Open Design skills such as `product-marketing`, `copywriting`, `cro`, `ad-creative`, `ads`, `seo-audit`, `ai-seo`, `content-strategy`, `analytics`, `pricing`, `launch`, `emails`, `social`, `sales-enablement`, `screenshots-marketing`, and `marketing-psychology` when they match the request.",
+            "- Build a previewable artifact: campaign workspace, conversion landing page, ad creative set, email sequence, social carousel, launch deck, sales one-pager, SEO page set, pricing/paywall screen, or measurement dashboard.",
+        ])
+    else:
+        lines.extend([
+            "- Primary route: `od-default` for free-form shaping, then `od-new-generation` for prototype/artifact generation.",
+            "- Default to high-fidelity web/desktop/mobile prototype output when the prompt is ambiguous.",
+        ])
+    return "\n".join(lines) + "\n\n"
+
+
+def _completion_message(request: str) -> str:
+    mode = _effective_project_mode(request)
+    if mode == "dashboard":
+        return "Built the live dashboard. Take a look in Preview, then tell me what you want tuned: layout, metrics, charts, filters, or the data model."
+    if mode == "deck":
+        return "Built the slide deck. Open Preview to review the flow, then tell me which slides you want sharpened or expanded."
+    if mode == "image":
+        return "Built the image-focused artifact in Preview. Tell me what visual direction or edits you want next."
+    if mode == "marketing":
+        return "Built the marketing artifact in Preview. Review the positioning, offer, copy, creative, and channel plan, then tell me what you want sharpened."
+    if mode == "motion":
+        return "Built the motion artifact structure. Review it in Preview, then we can tune the pacing, frames, or visual style."
+    return "Built the first version in Preview. Tell me what you want changed next and I’ll keep iterating with you."
+
+
+def _visible_assistant_reply(prose: str, summary: Any, applied: list[str], request: str) -> str:
+    text = (prose or "").strip()
+    if not text and isinstance(summary, str):
+        text = summary.strip()
+    if applied:
+        if not text:
+            return _completion_message(request)
+        if re.search(r"\b(i'?m|i am|i’ll|i'll|i will)\s+(building|build|creating|create|making|make)\b", text, re.IGNORECASE):
+            return _completion_message(request)
+        if re.search(r"\bnow\s+(building|creating|making)\b", text, re.IGNORECASE):
+            return _completion_message(request)
+    return text or "I could not apply the update cleanly. Try a smaller change and I will rebuild it."
+
+
 def _looks_like_build_request(text: str) -> bool:
     lowered = (text or "").lower()
     return any(word in lowered for word in (
@@ -1070,6 +1579,24 @@ def _looks_like_build_request(text: str) -> bool:
 
 def _infer_project_mode(text: str) -> str:
     lowered = (text or "").lower()
+    if any(word in lowered for word in (
+        "dashboard", "analytics", "kpi", "metrics", "admin", "command center",
+        "ops center", "operations", "crm", "sales team", "pipeline", "live artifact",
+        "reporting console", "data console",
+    )):
+        return "dashboard"
+    if any(word in lowered for word in ("slide deck", "deck", "presentation", "pitch", "weekly update", "magazine deck")):
+        return "deck"
+    if any(word in lowered for word in ("hyperframe", "hyperframes", "motion graphic", "video", "storyboard", "animation")):
+        return "motion"
+    if any(word in lowered for word in ("image", "photo", "picture", "mockup", "visual asset")):
+        return "image"
+    if any(word in lowered for word in (
+        "marketing", "campaign", "cro", "copywriting", "copy", "seo", "ads", "ad creative",
+        "funnel", "launch", "email sequence", "social content", "pricing", "positioning",
+        "sales enablement", "lead magnet", "offer", "conversion", "retention",
+    )):
+        return "marketing"
     if any(word in lowered for word in ("landing", "marketing", "homepage", "home page", "website", "site", "hero", "pricing", "faq")):
         return "landing"
     if any(word in lowered for word in ("dashboard", "app", "tool", "portal", "admin", "workspace", "crm", "kanban")):
@@ -1083,7 +1610,7 @@ def _quality_report(files: dict[str, str], request: str = "") -> list[str]:
     css = files.get("styles.css", "")
     js = files.get("app.js", "")
     total_len = sum(len(value or "") for value in files.values())
-    mode = _infer_project_mode(request)
+    mode = _effective_project_mode(request)
 
     if not html:
         issues.append("missing index.html")
@@ -1096,9 +1623,9 @@ def _quality_report(files: dict[str, str], request: str = "") -> list[str]:
     if total_len < 12000:
         issues.append("overall project is too small and likely template-level")
     section_count = len(re.findall(r"<section\b|<article\b|<header\b|<footer\b|<main\b", html, flags=re.IGNORECASE))
-    if section_count < 7:
+    if mode in {"landing", "generic"} and section_count < 7:
         issues.append("not enough semantic sections for a complete landing/site experience")
-    if not re.search(r"<(svg|img|picture|canvas)\b|class=[\"'][^\"']*(mock|visual|device|dashboard|product)", html, re.IGNORECASE):
+    if mode != "dashboard" and not re.search(r"<(svg|img|picture|canvas)\b|class=[\"'][^\"']*(mock|visual|device|dashboard|product)", html, re.IGNORECASE):
         issues.append("missing a strong product visual or mock UI")
     if re.search(r"lorem ipsum|your text here|welcome to|fast\.\s*secure\.\s*reliable", html, re.IGNORECASE):
         issues.append("contains generic placeholder copy")
@@ -1132,6 +1659,36 @@ def _quality_report(files: dict[str, str], request: str = "") -> list[str]:
             issues.append("landing page is missing an FAQ/objection-handling section")
         if not landing_signals["proof"]:
             issues.append("landing page is missing meaningful social proof, testimonials, or metrics")
+    if mode == "marketing":
+        combined = html + "\n" + css + "\n" + js
+        if not re.search(r"positioning|audience|persona|segment|customer|pain|job-to-be-done|icp", combined, re.IGNORECASE):
+            issues.append("marketing artifact is missing audience, customer, or positioning context")
+        if not re.search(r"offer|cta|conversion|funnel|hook|headline|objection|proof|testimonial|risk reversal", combined, re.IGNORECASE):
+            issues.append("marketing artifact is missing offer, hook, proof, objection, or conversion strategy")
+        if not re.search(r"ad|email|social|seo|launch|channel|campaign|creative|sequence|carousel|sales", combined, re.IGNORECASE):
+            issues.append("marketing artifact is missing channel-specific campaign assets or rollout details")
+        if not re.search(r"metric|kpi|utm|analytics|experiment|a/b|ab test|conversion rate|measurement", combined, re.IGNORECASE):
+            issues.append("marketing artifact is missing measurement, analytics, or experiment guidance")
+    if mode == "dashboard":
+        combined = html + "\n" + css + "\n" + js
+        if re.search(r"hero|pricing|testimonial|faq|logo cloud|trusted by", html, re.IGNORECASE):
+            issues.append("dashboard request produced landing-page sections instead of an application surface")
+        if not re.search(r"sidebar|side-nav|sidenav|app-shell|workspace|topbar|top-bar|command", combined, re.IGNORECASE):
+            issues.append("dashboard is missing an application shell with sidebar/top navigation")
+        if not re.search(r"kpi|metric|revenue|pipeline|conversion|forecast|quota|health|score", combined, re.IGNORECASE):
+            issues.append("dashboard is missing domain-specific KPI/metric cards")
+        if not re.search(r"chart|graph|canvas|svg|sparkline|bar|line|donut|area", combined, re.IGNORECASE):
+            issues.append("dashboard is missing chart or visualization panels")
+        if not re.search(r"filter|date|range|segment|search|select|region|team|owner", combined, re.IGNORECASE):
+            issues.append("dashboard is missing filters, search, or date-range controls")
+        if not re.search(r"<table\b|pipeline|kanban|activity|feed|rows|tbody|deal|account", combined, re.IGNORECASE):
+            issues.append("dashboard is missing a data table, pipeline board, or activity feed")
+        if not re.search(r"detail|drawer|modal|drill|selected|active|inspect", combined, re.IGNORECASE):
+            issues.append("dashboard is missing drilldown/detail interaction")
+        if not re.search(r"empty|loading|error|offline|success|alert|anomaly", combined, re.IGNORECASE):
+            issues.append("dashboard is missing operational empty/loading/error/alert states")
+        if js and len(re.findall(r"addEventListener|querySelector|classList|dataset|filter|map|reduce", js, re.IGNORECASE)) < 4:
+            issues.append("dashboard JavaScript is too thin for a live artifact")
     if mode == "app":
         if not re.search(r"empty|loading|error|validation|invalid|success", html + "\n" + js, re.IGNORECASE):
             issues.append("app build is missing explicit empty/loading/error or validation states")
@@ -1188,21 +1745,25 @@ async def _call_llm(messages: list[dict[str, str]]) -> str:
     )
 
 
-def _build_context_message(state: dict[str, Any], extra_context: str = "") -> str:
+def _build_context_message(state: dict[str, Any], extra_context: str = "", request_text: str = "") -> str:
     files = state.get("files") or {}
     active = state.get("activeFile") or ""
-    latest_request = ""
+    latest_request = _strip_build_studio_auto_context(request_text)
     chat = state.get("chat") if isinstance(state.get("chat"), list) else []
-    for item in reversed(chat):
-        if isinstance(item, dict) and item.get("role") == "user":
-            latest_request = str(item.get("content") or "")
-            break
-    project_mode = _infer_project_mode(latest_request)
+    if not latest_request:
+        for item in reversed(chat):
+            if isinstance(item, dict) and item.get("role") == "user":
+                latest_request = str(item.get("content") or "")
+                break
+    project_mode = _effective_project_mode(request_text, latest_request)
+    open_design_route = _open_design_scenario_route(request_text, latest_request)
+    open_design_hints = _open_design_catalog_hints(request_text, latest_request)
     tree = "\n".join(f"  - {p}" for p in sorted(files.keys()))
     active_body = files.get(active, "")
     if len(active_body) > 12000:
         active_body = active_body[:12000] + "\n/* ...truncated... */"
     plan = state.get("buildPlan") if isinstance(state.get("buildPlan"), dict) else None
+    media_readiness = _open_design_media_readiness(request_text, latest_request)
     plan_block = ""
     if plan:
         plan_lines = [f"- [{step.get('status', 'pending')}] {step.get('title')}: {step.get('detail')}" for step in plan.get("steps", []) if isinstance(step, dict)]
@@ -1213,6 +1774,9 @@ def _build_context_message(state: dict[str, Any], extra_context: str = "") -> st
         )
     return (
         f"## Inferred build mode\n{project_mode}\n\n"
+        f"{open_design_route}"
+        f"{open_design_hints}"
+        f"{media_readiness}"
         f"{extra_context}"
         f"## Project file tree\n{tree or '  (empty)'}\n\n"
         f"## Active file: `{active or '(none)'}`\n"
@@ -1274,6 +1838,22 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
     async def _get_state(ws, req_id, params, session_id):  # noqa: ANN001
         await _reply(ws, req_id, _save_state(_load_state()), include_projects=True)
 
+    async def _open_design_status_rpc(ws, req_id, params, session_id):  # noqa: ANN001
+        await _reply(
+            ws,
+            req_id,
+            _save_state(_load_state()),
+            extra={"openDesign": _open_design_status(include_catalog=False)},
+        )
+
+    async def _open_design_catalog_rpc(ws, req_id, params, session_id):  # noqa: ANN001
+        await _reply(
+            ws,
+            req_id,
+            _save_state(_load_state()),
+            extra={"openDesign": _open_design_status(include_catalog=True)},
+        )
+
     async def _reset_project(ws, req_id, params, session_id):  # noqa: ANN001
         await _reply(ws, req_id, _save_state(_default_state()))
 
@@ -1293,7 +1873,7 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
     async def _set_preview_mode(ws, req_id, params, session_id):  # noqa: ANN001
         p = _p(params)
         mode = str(p.get("mode") or "preview")
-        if mode not in ("preview", "code", "projects"):
+        if mode not in ("preview", "code", "projects", "templates"):
             mode = "preview"
         state = _load_state()
         state["previewMode"] = mode
@@ -1366,10 +1946,11 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
         if not user_text:
             await _fail(ws, req_id, "empty message")
             return
+        display_user_text = _strip_build_studio_auto_context(user_text)
         state = _load_state()
 
         # Append user message and persist before LLM call so UI can show it.
-        user_msg = {"id": uuid.uuid4().hex[:10], "role": "user", "content": user_text, "at": _now_iso()}
+        user_msg = {"id": uuid.uuid4().hex[:10], "role": "user", "content": display_user_text, "at": _now_iso()}
         state["chat"].append(user_msg)
         state["busy"] = True
         state["lastError"] = None
@@ -1388,7 +1969,7 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
             await _reply(ws, req_id, _save_state(state))
             return
 
-        context_block = _build_context_message(state, extra_context)
+        context_block = _build_context_message(state, extra_context, user_text)
         history: list[dict[str, str]] = [{"role": "system", "content": BUILDER_SYSTEM_PROMPT}]
         # Insert a context message before the latest user turn
         # Keep only last ~14 messages to limit tokens
@@ -1397,7 +1978,7 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
             role = m.get("role") if m.get("role") in ("user", "assistant") else "user"
             content = str(m.get("content") or "")
             if i == len(recent) - 1 and role == "user":
-                content = f"{context_block}\n---\n\nUser request:\n{content}"
+                content = f"{context_block}\n---\n\nUser request:\n{user_text}"
             history.append({"role": role, "content": content})
 
         use_main_agent = False
@@ -1455,9 +2036,19 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
                     "non-Auto Build Studio controls, call `open_design_capability_snapshot` first; then use "
                     "`open_design_api_request` for `/api/skills`, `/api/plugins`, or `/api/design-systems` when "
                     "you need exact live catalog details. Use the selected controls as constraints, not suggestions.\n"
+                    "Route selected Build Studio modes deliberately: Prototype -> `od-default`/`od-new-generation`; "
+                    "Image/Video -> `od-media-generation`; HyperFrames -> HTML-video/HyperFrames templates; "
+                    "Marketing -> marketing skill family (`product-marketing`, `copywriting`, `cro`, `ad-creative`, "
+                    "`ads`, `seo-audit`, `content-strategy`, `analytics`, `pricing`, `launch`, `emails`, `social`, "
+                    "`sales-enablement`, `screenshots-marketing`, `marketing-psychology`) and marketing scenario templates; "
+                    "deck export/audit -> `example-pptx-html-fidelity-audit`; React/Next export -> "
+                    "`od-react-export`/`od-nextjs-export`; Figma/source-code migration -> "
+                    "`od-figma-migration`/`od-code-migration`.\n"
                     "Use tools when they materially improve the result. After tool work, you MUST return the "
                     "final ``json-ops`` fenced block as specified in the system role — that block is how files are "
                     "actually written. Prose outside the block is shown to the user as your message.\n"
+                    "Keep the visible prose natural and concise. Do not echo the hidden Build Studio auto mode "
+                    "instructions, implementation logs, or file-operation lists. The UI already shows progress and files.\n"
                     "Important: during this App Builder run, do not call App Builder mutation tools such as "
                     "`features_app_builder_write_file` or `features_app_builder_delete_file`. Those tools are for "
                     "the main chat agent outside this builder bridge. Here, all project mutations must be expressed "
@@ -1536,7 +2127,7 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
         assistant_msg = {
             "id": uuid.uuid4().hex[:10],
             "role": "assistant",
-            "content": prose or (summary or ("Applied file updates." if applied else "I could not apply the file updates.")),
+            "content": _visible_assistant_reply(prose, summary, applied, user_text),
             "opsApplied": applied,
             "summary": summary,
             "at": _now_iso(),
@@ -1815,6 +2406,8 @@ def register_app_builder_handlers(channel: Any, agent_client: Any | None = None)
 
     methods = {
         "app.builder.get_state": _get_state,
+        "app.builder.open_design_status": _open_design_status_rpc,
+        "app.builder.open_design_catalog": _open_design_catalog_rpc,
         "app.builder.reset_project": _reset_project,
         "app.builder.set_active_file": _set_active_file,
         "app.builder.set_preview_mode": _set_preview_mode,

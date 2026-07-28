@@ -120,11 +120,14 @@ def main() -> None:
                 env={"PLUNK_BASE_PATH": os.getenv("PLUNK_BASE_PATH", "/mail")},
             )
         if _is_env_truthy("OPEN_DESIGN_DAEMON_AUTOSTART", default=True) and open_design_dir.exists():
-            processes["open-design-daemon"] = _start_process(
-                "open-design-daemon",
-                ["pnpm", "exec", "od", "daemon", "start", "--headless"],
-                open_design_dir,
-            )
+            if shutil.which("pnpm") is None:
+                print("[render-entry] skipping OpenDesign daemon: pnpm is not installed or not on PATH", flush=True)
+            else:
+                processes["open-design-daemon"] = _start_process(
+                    "open-design-daemon",
+                    ["pnpm", "exec", "od", "daemon", "start", "--headless", "--port", "7456", "--host", "127.0.0.1"],
+                    open_design_dir,
+                )
         time.sleep(1.0)
         processes["web"] = _start_process(
             "web",

@@ -12,6 +12,8 @@ import re
 import secrets
 import shutil
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
@@ -198,6 +200,36 @@ _CONFIG_SET_ENV_MAP = {
     "free_search_ddg_enabled": "FREE_SEARCH_DDG_ENABLED",
     "free_search_bing_enabled": "FREE_SEARCH_BING_ENABLED",
     "free_search_proxy_url": "FREE_SEARCH_PROXY_URL",
+    # Open Design / Build Studio media providers. Users configure these here;
+    # the backend mirrors them to Open Design's media dispatcher.
+    "openai_api_key": "OPENAI_API_KEY",
+    "google_api_key": "GOOGLE_API_KEY",
+    "gemini_api_key": "GEMINI_API_KEY",
+    "fal_api_key": "FAL_API_KEY",
+    "imagerouter_api_key": "IMAGEROUTER_API_KEY",
+    "imagerouter_api_base": "IMAGEROUTER_API_BASE",
+    "openrouter_api_key": "OPENROUTER_API_KEY",
+    "openrouter_api_base": "OPENROUTER_API_BASE",
+    "custom_image_api_key": "CUSTOM_IMAGE_API_KEY",
+    "custom_image_api_base": "CUSTOM_IMAGE_API_BASE",
+    "custom_image_model": "CUSTOM_IMAGE_MODEL",
+    "nanobanana_api_key": "OD_NANOBANANA_API_KEY",
+    "grok_api_key": "XAI_API_KEY",
+    "volcengine_api_key": "VOLCENGINE_API_KEY",
+    "bfl_api_key": "BFL_API_KEY",
+    "leonardo_api_key": "LEONARDO_API_KEY",
+    "replicate_api_token": "REPLICATE_API_TOKEN",
+    "kling_api_key": "KLING_API_KEY",
+    "midjourney_api_key": "OD_MIDJOURNEY_API_KEY",
+    "minimax_api_key": "MINIMAX_API_KEY",
+    "elevenlabs_api_key": "ELEVENLABS_API_KEY",
+    "fishaudio_api_key": "FISH_AUDIO_API_KEY",
+    "senseaudio_api_key": "SENSEAUDIO_API_KEY",
+    "aihubmix_api_key": "AIHUBMIX_API_KEY",
+    "aihubmix_api_base": "AIHUBMIX_API_BASE",
+    "suno_api_key": "OD_SUNO_API_KEY",
+    "udio_api_key": "OD_UDIO_API_KEY",
+    "tavily_api_key": "TAVILY_API_KEY",
 }
 # 配置项键名列表，用于日志等说明
 CONFIG_KEYS = tuple(_CONFIG_SET_ENV_MAP.keys())
@@ -276,6 +308,219 @@ def _provider_alias_env_updates(provider: str, api_key: str, api_base: str) -> d
         updates["OPENAI_API_KEY"] = api_key
         updates["OPENAI_API_BASE"] = api_base or "https://api.openai.com/v1"
     return updates
+
+
+def _media_alias_env_updates(env_updates: dict[str, str]) -> dict[str, str]:
+    """Keep Open Design env aliases in sync with Deep Canvas config keys."""
+    aliases: dict[str, str] = {}
+    if "FAL_API_KEY" in env_updates:
+        aliases["FAL_KEY"] = env_updates["FAL_API_KEY"]
+        aliases["OD_FAL_KEY"] = env_updates["FAL_API_KEY"]
+    if "VOLCENGINE_API_KEY" in env_updates:
+        aliases["ARK_API_KEY"] = env_updates["VOLCENGINE_API_KEY"]
+    if "GOOGLE_API_KEY" in env_updates and "OD_NANOBANANA_API_KEY" not in env_updates:
+        aliases["OD_NANOBANANA_API_KEY"] = env_updates["GOOGLE_API_KEY"]
+    if "GEMINI_API_KEY" in env_updates and "OD_NANOBANANA_API_KEY" not in env_updates:
+        aliases["OD_NANOBANANA_API_KEY"] = env_updates["GEMINI_API_KEY"]
+    if "XAI_API_KEY" in env_updates:
+        aliases["OD_GROK_API_KEY"] = env_updates["XAI_API_KEY"]
+    return {k: v for k, v in aliases.items() if k not in env_updates}
+
+
+def _od_base_url() -> str:
+    return (
+        os.getenv("OPEN_DESIGN_DAEMON_URL")
+        or os.getenv("OD_DAEMON_URL")
+        or "http://127.0.0.1:7456"
+    ).strip().rstrip("/")
+
+
+def _decrypt_env_value(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        from jiuwenclaw.extensions.registry import ExtensionRegistry
+
+        crypto = ExtensionRegistry.get_instance().get_crypto_provider()
+        if crypto:
+            return str(crypto.decrypt(value) or "").strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return str(value or "").strip()
+
+
+def _env_first(*names: str) -> str:
+    for name in names:
+        value = _decrypt_env_value(os.getenv(name) or "")
+        if value:
+            return value
+    return ""
+
+
+def _provider_matches(env_name: str, *accepted: str) -> bool:
+    raw = str(os.getenv(env_name) or "").strip().lower().replace(" ", "").replace(".", "")
+    aliases = {
+        "googlegemini": "gemini",
+        "falai": "fal",
+        "openai-compatible": "openai",
+    }
+    value = aliases.get(raw, raw)
+    return value in {item.lower().replace(" ", "").replace(".", "") for item in accepted}
+
+
+def _bucket_key_for(provider_id: str, bucket: str) -> str:
+    provider_env = {
+        "vision": "VISION_PROVIDER",
+        "video": "VIDEO_PROVIDER",
+        "audio": "AUDIO_PROVIDER",
+    }.get(bucket, "")
+    key_env = {
+        "vision": "VISION_API_KEY",
+        "video": "VIDEO_API_KEY",
+        "audio": "AUDIO_API_KEY",
+    }.get(bucket, "")
+    if not provider_env or not key_env:
+        return ""
+    accepted = {
+        "openai": ("openai",),
+        "nanobanana": ("google", "gemini"),
+        "google": ("google", "gemini"),
+        "fal": ("fal", "falai"),
+        "openrouter": ("openrouter",),
+        "imagerouter": ("imagerouter", "image router"),
+        "grok": ("grok", "xai"),
+    }.get(provider_id, ())
+    return _env_first(key_env) if accepted and _provider_matches(provider_env, *accepted) else ""
+
+
+def _media_provider_config_from_env(provider_id: str) -> dict[str, str]:
+    """Resolve a single Open Design media provider from Deep Canvas config."""
+    if provider_id == "openai":
+        key = _env_first("OD_OPENAI_API_KEY", "OPENAI_API_KEY") or _bucket_key_for("openai", "vision") or _bucket_key_for("openai", "video")
+        return {"apiKey": key, "baseUrl": _env_first("OPENAI_API_BASE"), "model": ""}
+    if provider_id == "nanobanana":
+        key = _env_first("OD_NANOBANANA_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY") or _bucket_key_for("nanobanana", "vision")
+        return {"apiKey": key, "baseUrl": _env_first("NANOBANANA_API_BASE"), "model": _env_first("NANOBANANA_MODEL")}
+    if provider_id == "google":
+        key = _env_first("OD_GOOGLE_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY") or _bucket_key_for("google", "video")
+        return {"apiKey": key, "baseUrl": _env_first("GOOGLE_API_BASE"), "model": ""}
+    if provider_id == "fal":
+        key = _env_first("OD_FAL_KEY", "FAL_KEY", "FAL_API_KEY") or _bucket_key_for("fal", "vision") or _bucket_key_for("fal", "video")
+        return {"apiKey": key, "baseUrl": _env_first("FAL_API_BASE"), "model": ""}
+    if provider_id == "imagerouter":
+        return {"apiKey": _env_first("OD_IMAGEROUTER_API_KEY", "IMAGEROUTER_API_KEY"), "baseUrl": _env_first("IMAGEROUTER_API_BASE"), "model": ""}
+    if provider_id == "openrouter":
+        key = _env_first("OD_OPENROUTER_API_KEY", "OPENROUTER_API_KEY") or _bucket_key_for("openrouter", "vision") or _bucket_key_for("openrouter", "video")
+        return {"apiKey": key, "baseUrl": _env_first("OPENROUTER_API_BASE"), "model": ""}
+    if provider_id == "custom-image":
+        return {"apiKey": _env_first("OD_CUSTOM_IMAGE_API_KEY", "CUSTOM_IMAGE_API_KEY"), "baseUrl": _env_first("CUSTOM_IMAGE_API_BASE"), "model": _env_first("CUSTOM_IMAGE_MODEL")}
+    if provider_id == "grok":
+        return {"apiKey": _env_first("OD_GROK_API_KEY", "XAI_API_KEY"), "baseUrl": _env_first("XAI_API_BASE"), "model": ""}
+    if provider_id == "volcengine":
+        return {"apiKey": _env_first("OD_VOLCENGINE_API_KEY", "ARK_API_KEY", "VOLCENGINE_API_KEY"), "baseUrl": _env_first("VOLCENGINE_API_BASE"), "model": ""}
+    if provider_id == "bfl":
+        return {"apiKey": _env_first("OD_BFL_API_KEY", "BFL_API_KEY"), "baseUrl": _env_first("BFL_API_BASE"), "model": ""}
+    if provider_id == "replicate":
+        return {"apiKey": _env_first("OD_REPLICATE_API_TOKEN", "REPLICATE_API_TOKEN"), "baseUrl": "", "model": ""}
+    if provider_id == "leonardo":
+        return {"apiKey": _env_first("OD_LEONARDO_API_KEY", "LEONARDO_API_KEY"), "baseUrl": _env_first("LEONARDO_API_BASE"), "model": ""}
+    if provider_id == "kling":
+        return {"apiKey": _env_first("OD_KLING_API_KEY", "KLING_API_KEY"), "baseUrl": _env_first("KLING_API_BASE"), "model": ""}
+    if provider_id == "midjourney":
+        return {"apiKey": _env_first("OD_MIDJOURNEY_API_KEY"), "baseUrl": _env_first("MIDJOURNEY_API_BASE"), "model": ""}
+    if provider_id == "minimax":
+        return {"apiKey": _env_first("OD_MINIMAX_API_KEY", "MINIMAX_API_KEY"), "baseUrl": _env_first("MINIMAX_API_BASE"), "model": ""}
+    if provider_id == "elevenlabs":
+        return {"apiKey": _env_first("OD_ELEVENLABS_API_KEY", "ELEVENLABS_API_KEY"), "baseUrl": _env_first("ELEVENLABS_API_BASE"), "model": ""}
+    if provider_id == "fishaudio":
+        return {"apiKey": _env_first("OD_FISHAUDIO_API_KEY", "FISH_AUDIO_API_KEY"), "baseUrl": _env_first("FISH_AUDIO_API_BASE"), "model": ""}
+    if provider_id == "senseaudio":
+        return {"apiKey": _env_first("OD_SENSEAUDIO_API_KEY", "SENSEAUDIO_API_KEY"), "baseUrl": _env_first("SENSEAUDIO_API_BASE"), "model": ""}
+    if provider_id == "aihubmix":
+        return {"apiKey": _env_first("OD_AIHUBMIX_API_KEY", "AIHUBMIX_API_KEY"), "baseUrl": _env_first("AIHUBMIX_API_BASE"), "model": _env_first("AIHUBMIX_MODEL")}
+    if provider_id == "suno":
+        return {"apiKey": _env_first("OD_SUNO_API_KEY"), "baseUrl": "", "model": ""}
+    if provider_id == "udio":
+        return {"apiKey": _env_first("OD_UDIO_API_KEY"), "baseUrl": "", "model": ""}
+    if provider_id == "tavily":
+        return {"apiKey": _env_first("OD_TAVILY_API_KEY", "TAVILY_API_KEY"), "baseUrl": _env_first("TAVILY_API_BASE"), "model": ""}
+    return {"apiKey": "", "baseUrl": "", "model": ""}
+
+
+def _open_design_http_json(method: str, path: str, body: dict[str, Any] | None = None, timeout: float = 3.0) -> dict[str, Any]:
+    base = _od_base_url()
+    payload = json.dumps(body or {}).encode("utf-8") if body is not None else None
+    headers = {"Accept": "application/json"}
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(f"{base}{path}", method=method, data=payload, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - local daemon URL by default.
+        raw = resp.read().decode("utf-8", errors="replace")
+    return json.loads(raw) if raw else {}
+
+
+def _sync_open_design_media_config() -> bool:
+    """Mirror Configuration provider keys into Open Design's media config."""
+    provider_ids = (
+        "openai",
+        "nanobanana",
+        "google",
+        "fal",
+        "imagerouter",
+        "openrouter",
+        "custom-image",
+        "grok",
+        "volcengine",
+        "bfl",
+        "replicate",
+        "leonardo",
+        "kling",
+        "midjourney",
+        "minimax",
+        "elevenlabs",
+        "fishaudio",
+        "senseaudio",
+        "aihubmix",
+        "suno",
+        "udio",
+        "tavily",
+    )
+    try:
+        masked = _open_design_http_json("GET", "/api/media/config", timeout=2.0)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("[config.set] Open Design media sync skipped: %s", exc)
+        return False
+
+    prior = masked.get("providers") if isinstance(masked, dict) else {}
+    prior = prior if isinstance(prior, dict) else {}
+    providers: dict[str, dict[str, Any]] = {}
+    for provider_id in provider_ids:
+        resolved = _media_provider_config_from_env(provider_id)
+        prior_entry = prior.get(provider_id) if isinstance(prior.get(provider_id), dict) else {}
+        entry: dict[str, Any] = {}
+        api_key = resolved.get("apiKey") or ""
+        if api_key:
+            entry["apiKey"] = api_key
+        elif prior_entry.get("configured"):
+            entry["preserveApiKey"] = True
+        base_url = resolved.get("baseUrl") or prior_entry.get("baseUrl") or ""
+        model = resolved.get("model") or prior_entry.get("model") or ""
+        if base_url:
+            entry["baseUrl"] = base_url
+        if model:
+            entry["model"] = model
+        if entry:
+            providers[provider_id] = entry
+
+    try:
+        _open_design_http_json("PUT", "/api/media/config", {"providers": providers}, timeout=4.0)
+        logger.info("[config.set] Open Design media config synced for providers: %s", sorted(providers.keys()))
+        return True
+    except urllib.error.HTTPError as exc:
+        logger.warning("[config.set] Open Design media sync failed: HTTP %s", exc.code)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[config.set] Open Design media sync failed: %s", exc)
+    return False
 
 
 @dataclass
@@ -520,6 +765,9 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
                 env_updates["FEATURES_API_KEY"] = api_key
             env_updates.update(_provider_alias_env_updates(provider, api_key, api_base))
 
+        if env_updates:
+            env_updates.update(_media_alias_env_updates(env_updates))
+
         raw = get_config_raw()
         preferred_lang = raw.get("preferred_language", "zh")
 
@@ -550,6 +798,7 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
 
         if env_updates:
             _persist_env_updates(env_updates)
+            _sync_open_design_media_config()
             logger.info("[config.set] 已更新 .env: %s", list(env_updates.keys()))
         if yaml_updated:
             await _clear_agent_config_cache(_resolve(agent_client))

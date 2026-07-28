@@ -15,6 +15,8 @@ import argparse
 import asyncio
 import logging
 import os
+import shutil
+from pathlib import Path
 
 from dotenv import load_dotenv
 from openjiuwen.core.common.logging import LogManager
@@ -39,6 +41,29 @@ for _lg in LogManager.get_all_loggers().values():
 
 # Load env from user workspace config/.env
 load_dotenv(dotenv_path=get_env_file())
+
+
+def _ensure_windows_git_on_path() -> None:
+    if shutil.which("git") is not None:
+        return
+    if os.name != "nt":
+        return
+    for candidate in (
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "cmd",
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "bin",
+        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Git" / "cmd",
+        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Git" / "bin",
+    ):
+        if (candidate / "git.exe").exists():
+            os.environ["PATH"] = f"{candidate}{os.pathsep}{os.environ.get('PATH', '')}"
+            return
+
+
+def _ensure_git_identity_env() -> None:
+    os.environ.setdefault("GIT_AUTHOR_NAME", "Deep Canvas")
+    os.environ.setdefault("GIT_AUTHOR_EMAIL", "deepcanvas@localhost")
+    os.environ.setdefault("GIT_COMMITTER_NAME", os.environ["GIT_AUTHOR_NAME"])
+    os.environ.setdefault("GIT_COMMITTER_EMAIL", os.environ["GIT_AUTHOR_EMAIL"])
 
 
 async def _run(host: str, port: int) -> None:
@@ -95,6 +120,8 @@ async def _run(host: str, port: int) -> None:
 
 
 def main() -> None:
+    _ensure_windows_git_on_path()
+    _ensure_git_identity_env()
     parser = argparse.ArgumentParser(
         prog="jiuwenclaw-agentserver",
         description="Start JiuwenClaw AgentServer (standalone process for Gateway to connect).",

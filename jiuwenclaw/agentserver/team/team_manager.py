@@ -13,12 +13,15 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 from openjiuwen.agent_teams.agent.team_agent import TeamAgent
+from openjiuwen.agent_evolving.trajectory import InMemoryTrajectoryRegistry
+from openjiuwen.agent_teams.paths import team_home
 from openjiuwen.agent_teams.schema.blueprint import TeamAgentSpec
 try:
     from openjiuwen.agent_teams.spawn.context import reset_session_id, set_session_id
 except ImportError:
     from openjiuwen.agent_teams.context import reset_session_id, set_session_id
 from openjiuwen.harness import DeepAgent
+from openjiuwen.core.runner import Runner
 
 from jiuwenclaw.agentserver.team.bootstrap import configure_agent_teams_home
 
@@ -34,6 +37,8 @@ from jiuwenclaw.agentserver.team.team_runtime_inheritance import (
     filter_inheritable_ability_cards,
     get_default_model_name,
 )
+from jiuwenclaw.agentserver.swarm import SwarmBuildContext, register_swarm_providers
+from jiuwenclaw.utils import get_agent_skills_dir
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +47,7 @@ class TeamManager:
     """Manage team instances across sessions."""
 
     def __init__(self):
-        self._team_agents: dict[str, TeamAgent] = {}
+        self._team_agents: dict[str, TeamAgent | TeamAgentSpec] = {}
         self._team_monitors: dict[str, TeamMonitorHandler] = {}
         self._stream_tasks: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
@@ -138,7 +143,8 @@ class TeamManager:
                 metadata=request_metadata,
             )
             for sf_tool in send_file_toolkit.get_tools():
-                Runner.resource_mgr.add_tool(sf_tool)
+                if not Runner.resource_mgr.get_tool(sf_tool.card.id):
+                    Runner.resource_mgr.add_tool(sf_tool)
                 agent.ability_manager.add(sf_tool.card)
             logger.info("[TeamManager] SendFileToolkit registered for channel=%s", channel_id)
         except Exception as exc:
@@ -413,6 +419,47 @@ class TeamManager:
 
         return customizer
 
+    @staticmethod
+    def attach_swarm_build_context(
+        spec: TeamAgentSpec,
+        *,
+        session_id: str,
+        request_id: str | None,
+        channel_id: str | None,
+        request_metadata: dict[str, Any] | None,
+    ) -> None:
+        """Attach newer openJiuwen build context/seed fields without changing existing team UI config."""
+        from jiuwenclaw.config import get_config
+
+        register_swarm_providers()
+        workspace = getattr(spec, "workspace", None)
+        team_ws_root = (
+            workspace.root_path
+            if workspace and getattr(workspace, "root_path", None)
+            else str(team_home(spec.team_name) / "team-workspace")
+        )
+        mode = str((request_metadata or {}).get("mode") or "team")
+        project_dir = (
+            request_metadata or {}
+        ).get("project_dir") or (request_metadata or {}).get("cwd")
+        context = SwarmBuildContext(
+            session_id=session_id,
+            request_id=request_id,
+            channel_id=channel_id,
+            channel=channel_id or "default",
+            request_metadata=request_metadata,
+            mode=mode,
+            project_dir=str(project_dir) if project_dir else None,
+            team_id=spec.team_name,
+            team_ws_root=str(team_ws_root),
+            team_skills_dir=str(Path(team_ws_root) / "skills"),
+            global_skills_dir=str(get_agent_skills_dir()),
+            trajectory_registry=InMemoryTrajectoryRegistry(),
+            config=get_config(),
+        )
+        spec.build_context = context
+        spec.build_context_seed = context.to_seed()
+
     async def create_team(
         self,
         session_id: str,
@@ -420,9 +467,16 @@ class TeamManager:
         request_id: str | None = None,
         channel_id: str | None = None,
         request_metadata: dict[str, Any] | None = None,
-    ) -> TeamAgent:
+    ) -> TeamAgentSpec:
         logger.info("[TeamManager] building TeamAgentSpec: session_id=%s", session_id)
         spec = self._load_team_spec(session_id)
+        self.attach_swarm_build_context(
+            spec,
+            session_id=session_id,
+            request_id=request_id,
+            channel_id=channel_id,
+            request_metadata=request_metadata,
+        )
         deleted_tables, cleared_tables = await self._cleanup_team_runtime_state(spec)
         if deleted_tables or cleared_tables:
             logger.info(
@@ -431,28 +485,18 @@ class TeamManager:
                 cleared_tables,
             )
 
-        spec.agent_customizer = self.build_agent_customizer(
-            spec,
-            deep_agent,
-            session_id,
-            request_id=request_id,
-            channel_id=channel_id,
-            request_metadata=request_metadata,
-        )
-
         logger.info("[TeamManager] TeamAgentSpec ready: team_name=%s", spec.team_name)
 
         token = set_session_id(session_id)
         try:
-            logger.info("[TeamManager] creating TeamAgent from spec")
-            team_agent = spec.build()
-            self._team_agents[session_id] = team_agent
+            logger.info("[TeamManager] prepared TeamAgentSpec for upstream runtime")
+            self._team_agents[session_id] = spec
             logger.info(
-                "[TeamManager] Team created: session_id=%s, team_name=%s",
+                "[TeamManager] Team spec cached: session_id=%s, team_name=%s",
                 session_id,
                 spec.team_name,
             )
-            return team_agent
+            return spec
         finally:
             reset_session_id(token)
 
@@ -463,11 +507,11 @@ class TeamManager:
         request_id: str | None = None,
         channel_id: str | None = None,
         request_metadata: dict[str, Any] | None = None,
-    ) -> TeamAgent:
+    ) -> TeamAgent | TeamAgentSpec:
         async with self._lock:
-            team_agent = self._team_agents.get(session_id)
-            if team_agent is not None:
-                return team_agent
+            team_entry = self._team_agents.get(session_id)
+            if team_entry is not None:
+                return team_entry
 
             await self._destroy_other_sessions(session_id)
             return await self.create_team(
@@ -479,13 +523,28 @@ class TeamManager:
             )
 
     async def interact(self, session_id: str, user_input: str) -> bool:
-        team_agent = self._team_agents.get(session_id)
-        if team_agent is None:
+        team_entry = self._team_agents.get(session_id)
+        if team_entry is None:
             logger.warning("[TeamManager] interact failed, missing team: session_id=%s", session_id)
             return False
 
         try:
-            await team_agent.interact(user_input)
+            if isinstance(team_entry, TeamAgentSpec):
+                result = await Runner.interact_agent_team(
+                    user_input,
+                    team_name=team_entry.team_name,
+                    session_id=session_id,
+                )
+                ok = bool(getattr(result, "ok", False) or getattr(result, "succeeded", False))
+                if not ok:
+                    logger.warning(
+                        "[TeamManager] interact rejected: session_id=%s team_name=%s result=%s",
+                        session_id,
+                        team_entry.team_name,
+                        result,
+                    )
+                return ok
+            await team_entry.interact(user_input)
             logger.debug("[TeamManager] interact sent: session_id=%s", session_id)
             return True
         except Exception as exc:
@@ -527,12 +586,12 @@ class TeamManager:
                     exc,
                 )
 
-        team_agent = self._team_agents.pop(session_id, None)
+        team_entry = self._team_agents.pop(session_id, None)
         cleaned = False
         cleanup_spec: TeamAgentSpec | None = None
         try:
             cleanup_spec = self._load_team_spec(session_id)
-            if team_agent is None:
+            if team_entry is None:
                 logger.info(
                     "[TeamManager] no in-memory team for session_id=%s, run runtime cleanup fallback only",
                     session_id,
@@ -541,7 +600,13 @@ class TeamManager:
 
             token = set_session_id(session_id)
             try:
-                cleaned = await team_agent.destroy_team(force=True)
+                if isinstance(team_entry, TeamAgentSpec):
+                    cleaned = await Runner.stop_agent_team(
+                        team_name=team_entry.team_name,
+                        session_id=session_id,
+                    )
+                else:
+                    cleaned = await team_entry.destroy_team(force=True)
             finally:
                 reset_session_id(token)
 
@@ -588,7 +653,7 @@ class TeamManager:
                 await self._destroy_team(session_id)
             logger.info("[TeamManager] all teams cleaned")
 
-    def get_team_agent(self, session_id: str) -> TeamAgent | None:
+    def get_team_agent(self, session_id: str) -> TeamAgent | TeamAgentSpec | None:
         return self._team_agents.get(session_id)
 
     def register_monitor(self, session_id: str, handler: TeamMonitorHandler) -> None:

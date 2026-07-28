@@ -12,11 +12,12 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "a2ui-agent-sdk==0.2.1",
     "chromadb>=1.5.0",
     "ruamel.yaml>=0.18.0",
     "lark-oapi>=1.5.3",
     "loguru>=0.7.3",
-    "openjiuwen @ git+https://gitcode.com/openJiuwen/agent-core.git@develop",
+    "openjiuwen==0.1.15",
     "pip==26.0.1",
     "pgvector>=0.4.2",
     "websockets>=12.0",
@@ -28,7 +29,8 @@ dependencies = [
     "dingtalk-stream>=0.24.3",
     "wecom-aibot-sdk>=1.0.5",
     "python-socks>=2.8.1",
-    "greenlet>=3.3.2",
+    "greenlet==3.2.4; platform_system == 'Windows'",
+    "greenlet>=3.3.2; platform_system != 'Windows'",
     "skillnet-ai==0.0.16",
     "mutagen>=1.47.0",
     "google-genai>=1.68.0",
@@ -36,19 +38,29 @@ dependencies = [
     "opentelemetry-sdk>=1.25.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.25.0",
     "opentelemetry-exporter-otlp-proto-http>=1.25.0",
-    "sqlite-vec==0.1.6"
+    "sqlite-vec==0.1.6",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "json-repair>=0.30.0",
 ]
 
 [project.optional-dependencies]
+a2a = ["a2a-sdk[http-server]==1.0.0"]
 desktop = ["pywebview>=5.4"]
 dev = ["pyinstaller>=6.0.0", "pywebview>=5.4"]
 tui = ["jiuwenclaw-tui==0.1.9"]
+distribute = ["openjiuwen[postgres,zmq]"]
 shell-ast = [
     "tree-sitter>=0.25.0,<0.26.0",
     "tree-sitter-bash>=0.25.0,<0.26.0",
 ]
 # Same packages as [dependency-groups] test (pip install -e ".[test]")
 test = [
+    "a2a-sdk[http-server]==1.0.0",
     "pytest>=8.3.5",
     "pytest-asyncio>=1.0.0",
     "pytest-html>=4.1.1",

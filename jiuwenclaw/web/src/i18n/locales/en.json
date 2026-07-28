@@ -55,17 +55,17 @@
     "placeholderProcessingQueue": "Processing, new input will join the queue...",
     "placeholderVoice": "Listening...",
     "welcomeLogoAlt": "Deep Canvas wordmark",
-    "welcomeHeading": "Welcome to Deep Canvas",
-    "welcomeSubtext": "Introduce yourself, tell me what you want to build, and we'll get everything set up together.",
+    "welcomeHeading": "Hi, I'm Deep Canvas. Nice to meet you!",
+    "welcomeSubtext": "I can answer questions, clear up confusion, and help you complete tasks.",
     "welcomeSuggestions": {
-      "journey": "Help me get set up",
-      "skills": "I'll introduce myself"
+      "journey": "Let's begin a brand-new journey!",
+      "skills": "Can you tell me what skills you have?"
     },
     "newSession": "New Session",
     "sessionCreated": "Session created",
-    "modePlan": "Planning Mode",
-    "modeAgent": "Performance Mode",
-    "modeAgentTeam": "Cluster Mode",
+    "modePlan": "Main",
+    "modeAgent": "Fast",
+    "modeAgentTeam": "Teams",
     "recording": "Recording... (release to send)",
     "waitingTasks": "Waiting tasks",
     "waitingTasksCount": "Waiting tasks ({{count}})",
@@ -102,10 +102,21 @@
     "blankBody": "This tab is reserved for a future module.",
     "tabs": {
       "tasks": "Tasks",
-      "connections": "Connections",
+      "connections": "Skills",
+      "skills": "Skills",
+      "teams": "Teams",
       "features": "Features",
       "blankOne": "Blank",
       "blankTwo": "Blank"
+    },
+    "skills": {
+      "title": "Ready skills",
+      "loading": "Loading skills...",
+      "empty": "No active skills yet"
+    },
+    "teams": {
+      "emptyTitle": "Teams",
+      "emptyBody": "Switch to Teams when you want multiple assistants working together."
     },
     "featuresPanel": {
       "chat": {
@@ -517,7 +528,7 @@
       "model": { "label": "Model Configuration", "hint": "Model service and authentication settings" },
       "embed": { "label": "Embed Configuration", "hint": "Embed service and authentication settings" },
       "featuresApi": { "label": "Features Settings", "hint": "Provider, model, base URL, and API key for PI feature agents and Build Studio" },
-      "thirdParty": { "label": "Third-Party Services", "hint": "API key settings" },
+      "thirdParty": { "label": "Third-Party Services", "hint": "API keys for Build Studio media providers, search, and integrations" },
       "freeSearch": { "label": "Free Search Engines", "hint": "Enable engines and optional Huawei proxy for enterprise intranet" },
       "evolution": { "label": "Evolution Settings", "hint": "Online skill evolution settings" },
       "contextEngine": { "label": "Context Compression", "hint": "Enable or disable dialogue context compression" },

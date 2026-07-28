@@ -9,7 +9,7 @@ function resolvePlunkUrl(): string {
   if (configuredUrl) return configuredUrl;
 
   if (import.meta.env.DEV) {
-    return '/mail/';
+    return '/mail';
   }
 
   return '/mail';

@@ -28,6 +28,14 @@ from jiuwenclaw.utils import (
     get_builtin_skills_dir,
     is_package_installation,
 )
+from jiuwenclaw.agentserver.skill_state import (
+    get_skill_enabled,
+    list_disabled_skills,
+    list_execution_disabled_skills,
+    normalize_skill_configs,
+    remove_skill_config,
+    set_skill_enabled,
+)
 from jiuwenclaw.evolution.schema import EvolutionEntry, EvolutionFile
 
 logger = logging.getLogger(__name__)
@@ -2340,6 +2348,7 @@ class SkillManager:
         state.setdefault("marketplaces", [])
         state.setdefault("installed_plugins", [])
         state.setdefault("local_skills", [])
+        state["skill_configs"] = normalize_skill_configs(state.get("skill_configs"))
         state["marketplaces"] = self.normalize_marketplaces(state.get("marketplaces"))
 
     def _get_installed_plugins(self) -> list[dict]:
@@ -2356,6 +2365,23 @@ class SkillManager:
     def get_local_skills(self) -> list[dict]:
         """返回本地技能安装记录的拷贝。"""
         return list(self._state.get("local_skills", []))
+
+    def get_skill_enabled(self, skill_name: str) -> bool:
+        return get_skill_enabled(self._state, skill_name)
+
+    def set_skill_enabled(self, skill_name: str, enabled: bool) -> None:
+        set_skill_enabled(self._state, skill_name, enabled)
+        self._save_state()
+
+    def remove_skill_config(self, skill_name: str) -> None:
+        if remove_skill_config(self._state, skill_name):
+            self._save_state()
+
+    def list_disabled_skills(self) -> list[str]:
+        return list_disabled_skills(self._state)
+
+    def list_execution_disabled_skills(self) -> list[str]:
+        return list_execution_disabled_skills(self._state)
 
     def get_skill_meta(self, skill_name: str) -> dict[str, Any] | None:
         """返回本地 skill 的解析元数据，附带目录与 skill 文件路径。"""

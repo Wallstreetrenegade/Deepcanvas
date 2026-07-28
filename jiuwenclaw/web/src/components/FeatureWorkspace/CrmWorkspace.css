@@ -424,6 +424,75 @@
   overflow: auto;
 }
 
+.feature-crm__batch-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.feature-crm__batch-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.feature-crm__batch-actions button {
+  min-height: 2.05rem;
+  padding: 0 0.45rem;
+  color: var(--app-text-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feature-crm__batch-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.feature-crm__batch-actions button.is-danger {
+  border-color: rgba(255, 139, 106, 0.26);
+  color: rgba(255, 203, 188, 0.92);
+}
+
+.feature-crm__batch-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.22rem 0.55rem;
+  width: 100%;
+  padding: 0.62rem 0.7rem;
+  text-align: left;
+}
+
+.feature-crm__batch-list button.is-active {
+  border-color: rgba(80, 217, 198, 0.68);
+  background: rgba(16, 61, 62, 0.78);
+}
+
+.feature-crm__batch-list strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-text-primary);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feature-crm__batch-list span {
+  color: rgba(181, 255, 246, 0.92);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.feature-crm__batch-list small {
+  grid-column: 1 / -1;
+  color: var(--app-text-secondary);
+  font-size: 0.7rem;
+}
+
 .feature-crm__toggle {
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -451,6 +520,10 @@
 }
 
 .feature-crm__primary {
+  width: 100%;
+}
+
+.feature-crm__bulk-button--wide {
   width: 100%;
 }
 

@@ -15,6 +15,7 @@ export type CrmViewPreset = 'all' | 'hot' | 'follow-up' | 'pipeline' | 'closed';
 export type CrmSortDirection = 'asc' | 'desc';
 export type CrmColumnKind = 'core' | 'custom';
 export type CrmSourceFilter = 'all' | string;
+export type CrmBatchFilter = 'all' | string;
 export type CrmHydrationStatus = 'idle' | 'loading' | 'ready' | 'error';
 export type CrmImportableField =
   | 'name'
@@ -112,6 +113,7 @@ interface CrmSnapshot {
   stageFilter: CrmLeadStage | 'all';
   statusFilter: CrmLeadStatus | 'all';
   sourceFilter: CrmSourceFilter;
+  batchFilter: CrmBatchFilter;
   viewPreset: CrmViewPreset;
   density: CrmDensity;
   sortKey: string;
@@ -128,6 +130,7 @@ interface CrmState extends CrmSnapshot {
   setStageFilter: (value: CrmLeadStage | 'all') => void;
   setStatusFilter: (value: CrmLeadStatus | 'all') => void;
   setSourceFilter: (value: CrmSourceFilter) => void;
+  setBatchFilter: (value: CrmBatchFilter) => void;
   setViewPreset: (value: CrmViewPreset) => void;
   setDensity: (value: CrmDensity) => void;
   setSort: (key: string) => void;
@@ -136,12 +139,15 @@ interface CrmState extends CrmSnapshot {
   addLead: (input: CreateLeadInput) => CrmLead | null;
   updateLead: (leadId: string, updates: Partial<Omit<CrmLead, 'id' | 'notes' | 'customFields' | 'createdAt'>>) => void;
   updateLeadCustomField: (leadId: string, fieldKey: string, value: string) => void;
+  assignBatchToLeads: (leadIds: string[], batchName: string) => number;
+  renameBatch: (fromBatch: string, toBatch: string) => number;
+  clearBatch: (batchName: string) => number;
   addLeadNote: (leadId: string, body: string) => void;
   deleteLead: (leadId: string) => void;
   openLead: (leadId: string) => void;
   closeLead: () => void;
-  importCsv: (content: string) => CrmImportResult;
-  importMappedCsv: (content: string, mappings: CrmImportMapping[]) => CrmImportResult;
+  importCsv: (content: string, batchName?: string) => CrmImportResult;
+  importMappedCsv: (content: string, mappings: CrmImportMapping[], batchName?: string) => CrmImportResult;
 }
 
 interface StoredAuthUser {
@@ -186,8 +192,8 @@ const DEFAULT_COLUMNS: CrmColumn[] = [
   { key: 'stage', label: 'Stage', kind: 'core', visible: true },
   { key: 'status', label: 'Status', kind: 'core', visible: true },
   { key: 'owner', label: 'Owner', kind: 'core', visible: true },
-  { key: 'source', label: 'Source', kind: 'core', visible: false },
-  { key: 'score', label: 'Score', kind: 'core', visible: false },
+  { key: 'source', label: 'Source', kind: 'core', visible: true },
+  { key: 'score', label: 'Score', kind: 'core', visible: true },
   { key: 'nextAction', label: 'Next Action', kind: 'core', visible: false },
   { key: 'lastContactAt', label: 'Last Contact', kind: 'core', visible: false },
   { key: 'updatedAt', label: 'Updated', kind: 'core', visible: false },
@@ -358,6 +364,50 @@ function normalizeColumns(value: unknown): CrmColumn[] {
   return merged;
 }
 
+function labelForCustomField(key: string): string {
+  const labels: Record<string, string> = {
+    lead_gen_batch: 'Lead Gen Batch',
+    lead_gen_profile_url: 'Profile URL',
+    lead_gen_location: 'Lead Location',
+    lead_gen_industry: 'Industry',
+    lead_gen_summary: 'Lead Summary',
+    lead_gen_source_key: 'Source Key',
+    lead_gen_source_label: 'Lead Source',
+    lead_gen_source_url: 'Source URL',
+    lead_gen_source_query: 'Source Query',
+    lead_gen_source_mode: 'Source Mode',
+    lead_gen_source_actor: 'Source Actor',
+    lead_gen_scraped_at: 'Scraped At',
+  };
+  if (labels[key]) return labels[key];
+  return key
+    .replace(/^custom_/, '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .slice(0, 80);
+}
+
+function customFieldVisibleByDefault(key: string): boolean {
+  return key === 'lead_gen_batch' || key === 'lead_gen_source_label';
+}
+
+function ensureCustomFieldColumns(columns: CrmColumn[], leads: CrmLead[]): CrmColumn[] {
+  const next = [...columns];
+  leads.forEach((lead) => {
+    Object.keys(lead.customFields).forEach((fieldKey) => {
+      const cleanKey = cleanText(fieldKey, 80);
+      if (!cleanKey || next.some((column) => column.key === cleanKey)) return;
+      next.push({
+        key: cleanKey,
+        label: labelForCustomField(cleanKey),
+        kind: 'custom',
+        visible: customFieldVisibleByDefault(cleanKey),
+      });
+    });
+  });
+  return next;
+}
+
 function createDefaultSnapshot(): CrmSnapshot {
   const timestamp = nowIso();
   return {
@@ -368,6 +418,7 @@ function createDefaultSnapshot(): CrmSnapshot {
     stageFilter: 'all',
     statusFilter: 'all',
     sourceFilter: 'all',
+    batchFilter: 'all',
     viewPreset: 'all',
     density: 'compact',
     sortKey: 'updatedAt',
@@ -380,7 +431,7 @@ function createDefaultSnapshot(): CrmSnapshot {
 function normalizeSnapshot(value: unknown, fallback: CrmSnapshot = createDefaultSnapshot()): CrmSnapshot {
   if (Array.isArray(value)) {
     const leads = value.map((lead, index) => normalizeLead(lead, index)).filter((lead): lead is CrmLead => Boolean(lead));
-    return { ...fallback, leads, detailLeadId: leads[0]?.id ?? null };
+    return { ...fallback, columns: ensureCustomFieldColumns(fallback.columns, leads), leads, detailLeadId: leads[0]?.id ?? null };
   }
 
   if (!value || typeof value !== 'object') return fallback;
@@ -396,14 +447,17 @@ function normalizeSnapshot(value: unknown, fallback: CrmSnapshot = createDefault
     ? raw.statusFilter as CrmLeadStatus | 'all'
     : fallback.statusFilter;
 
+  const columns = ensureCustomFieldColumns(normalizeColumns(raw.columns), leads);
+
   return {
     schemaVersion: CRM_STATE_VERSION,
-    columns: normalizeColumns(raw.columns),
+    columns,
     leads,
     searchQuery: cleanText(raw.searchQuery, 200),
     stageFilter,
     statusFilter,
     sourceFilter: cleanText(raw.sourceFilter, 160) || fallback.sourceFilter,
+    batchFilter: cleanText(raw.batchFilter, 160) || fallback.batchFilter,
     viewPreset: CRM_VIEW_PRESETS.includes(raw.viewPreset as CrmViewPreset) ? raw.viewPreset as CrmViewPreset : fallback.viewPreset,
     density: raw.density === 'cozy' ? 'cozy' : fallback.density,
     sortKey: cleanText(raw.sortKey, 80) || fallback.sortKey,
@@ -467,6 +521,7 @@ function mirrorCrmSnapshot(snapshot: CrmSnapshot): void {
     stageFilter: snapshot.stageFilter,
     statusFilter: snapshot.statusFilter,
     sourceFilter: snapshot.sourceFilter,
+    batchFilter: snapshot.batchFilter,
     viewPreset: snapshot.viewPreset,
     density: snapshot.density,
     sortKey: snapshot.sortKey,
@@ -630,10 +685,28 @@ function createLeadFromInput(input: CreateLeadInput): CrmLead | null {
   }, 0);
 }
 
+function applyBatchToLead(lead: CrmLead, batchName: string): CrmLead {
+  const cleanBatch = cleanText(batchName, 160);
+  const tagsWithoutBatch = lead.tags.filter((tag) => !tag.toLowerCase().startsWith('batch:'));
+  const customFields = { ...lead.customFields };
+  if (cleanBatch) {
+    customFields.lead_gen_batch = cleanBatch;
+  } else {
+    delete customFields.lead_gen_batch;
+  }
+  return {
+    ...lead,
+    customFields,
+    tags: cleanBatch ? Array.from(new Set([...tagsWithoutBatch, `Batch: ${cleanBatch}`])) : tagsWithoutBatch,
+    updatedAt: nowIso(),
+  };
+}
+
 function applyMappedImport(
   state: CrmSnapshot,
   content: string,
-  mappings: CrmImportMapping[]
+  mappings: CrmImportMapping[],
+  batchName = ''
 ): { snapshot: CrmSnapshot; result: CrmImportResult } {
   const parsed = parseCrmCsv(content);
   if (parsed.headers.length === 0 || parsed.rows.length === 0) {
@@ -705,7 +778,8 @@ function applyMappedImport(
       rawLead[key] = cell;
     });
 
-    const normalized = normalizeLead(rawLead, state.leads.length + rowIndex);
+    const normalizedRaw = normalizeLead(rawLead, state.leads.length + rowIndex);
+    const normalized = normalizedRaw && batchName ? applyBatchToLead(normalizedRaw, batchName) : normalizedRaw;
     if (!normalized) {
       result.skippedInvalidCount += 1;
       return;
@@ -729,7 +803,7 @@ function applyMappedImport(
   return {
     snapshot: {
       ...state,
-      columns: nextColumns,
+      columns: ensureCustomFieldColumns(nextColumns, nextLeads),
       leads: [...nextLeads, ...state.leads],
       detailLeadId: nextLeads[0]?.id ?? state.detailLeadId,
     },
@@ -807,6 +881,10 @@ export const useCrmStore = create<CrmState>((set, get) => ({
     commitSnapshot(set, (state) => ({ ...state, sourceFilter: value }));
   },
 
+  setBatchFilter: (value) => {
+    commitSnapshot(set, (state) => ({ ...state, batchFilter: value }));
+  },
+
   setViewPreset: (value) => {
     commitSnapshot(set, (state) => ({ ...state, viewPreset: value }));
   },
@@ -852,6 +930,7 @@ export const useCrmStore = create<CrmState>((set, get) => ({
       createdLead = nextLead;
       return {
         ...state,
+        columns: ensureCustomFieldColumns(state.columns, [nextLead]),
         leads: [nextLead, ...state.leads],
         detailLeadId: nextLead.id,
       };
@@ -892,6 +971,67 @@ export const useCrmStore = create<CrmState>((set, get) => ({
     }));
   },
 
+  assignBatchToLeads: (leadIds, batchName) => {
+    const cleanBatch = cleanText(batchName, 160);
+    const targetIds = new Set(leadIds);
+    if (!cleanBatch || targetIds.size === 0) return 0;
+    let updatedCount = 0;
+    commitSnapshot(set, (state) => {
+      const nextLeads = state.leads.map((lead) => {
+        if (!targetIds.has(lead.id)) return lead;
+        updatedCount += 1;
+        return applyBatchToLead(lead, cleanBatch);
+      });
+      return {
+        ...state,
+        columns: ensureCustomFieldColumns(state.columns, nextLeads),
+        leads: nextLeads,
+        batchFilter: cleanBatch,
+      };
+    });
+    return updatedCount;
+  },
+
+  renameBatch: (fromBatch, toBatch) => {
+    const cleanFrom = cleanText(fromBatch, 160);
+    const cleanTo = cleanText(toBatch, 160);
+    if (!cleanFrom || !cleanTo || cleanFrom === cleanTo) return 0;
+    let updatedCount = 0;
+    commitSnapshot(set, (state) => {
+      const nextLeads = state.leads.map((lead) => {
+        if (getLeadBatch(lead) !== cleanFrom) return lead;
+        updatedCount += 1;
+        return applyBatchToLead(lead, cleanTo);
+      });
+      return {
+        ...state,
+        columns: ensureCustomFieldColumns(state.columns, nextLeads),
+        leads: nextLeads,
+        batchFilter: state.batchFilter === cleanFrom ? cleanTo : state.batchFilter,
+      };
+    });
+    return updatedCount;
+  },
+
+  clearBatch: (batchName) => {
+    const cleanBatch = cleanText(batchName, 160);
+    if (!cleanBatch) return 0;
+    let updatedCount = 0;
+    commitSnapshot(set, (state) => {
+      const nextLeads = state.leads.map((lead) => {
+        if (getLeadBatch(lead) !== cleanBatch) return lead;
+        updatedCount += 1;
+        return applyBatchToLead(lead, '');
+      });
+      return {
+        ...state,
+        leads: nextLeads,
+        batchFilter: state.batchFilter === cleanBatch ? 'all' : state.batchFilter,
+      };
+    });
+    return updatedCount;
+  },
+
   addLeadNote: (leadId, body) => {
     const cleanBody = cleanText(body, 4000);
     if (!cleanBody) return;
@@ -925,21 +1065,21 @@ export const useCrmStore = create<CrmState>((set, get) => ({
     commitSnapshot(set, (state) => ({ ...state, detailLeadId: null }));
   },
 
-  importCsv: (content) => {
+  importCsv: (content, batchName = '') => {
     const defaultMappings = getDefaultCrmImportMappings(parseCrmCsv(content).headers);
     let result = EMPTY_IMPORT_RESULT;
     commitSnapshot(set, (state) => {
-      const imported = applyMappedImport(state, content, defaultMappings);
+      const imported = applyMappedImport(state, content, defaultMappings, batchName);
       result = imported.result;
       return imported.snapshot;
     });
     return result;
   },
 
-  importMappedCsv: (content, mappings) => {
+  importMappedCsv: (content, mappings, batchName = '') => {
     let result = EMPTY_IMPORT_RESULT;
     commitSnapshot(set, (state) => {
-      const imported = applyMappedImport(state, content, mappings);
+      const imported = applyMappedImport(state, content, mappings, batchName);
       result = imported.result;
       return imported.snapshot;
     });
@@ -950,4 +1090,20 @@ export const useCrmStore = create<CrmState>((set, get) => ({
 export function getCrmSourceOptions(leads: CrmLead[]): string[] {
   const values = new Set([...DEFAULT_SOURCE_OPTIONS, ...leads.map((lead) => lead.source).filter(Boolean)]);
   return Array.from(values);
+}
+
+export function getLeadBatch(lead: Pick<CrmLead, 'customFields' | 'tags'>): string {
+  const direct = cleanText(lead.customFields.lead_gen_batch, 160);
+  if (direct) return direct;
+  const tag = lead.tags.find((item) => item.toLowerCase().startsWith('batch:'));
+  return tag ? cleanText(tag.replace(/^batch:\s*/i, ''), 160) : '';
+}
+
+export function getCrmBatchOptions(leads: CrmLead[]): string[] {
+  const values = new Set<string>();
+  leads.forEach((lead) => {
+    const batch = getLeadBatch(lead);
+    if (batch) values.add(batch);
+  });
+  return Array.from(values).sort((left, right) => left.localeCompare(right));
 }

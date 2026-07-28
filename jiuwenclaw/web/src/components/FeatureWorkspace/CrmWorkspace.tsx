@@ -7,8 +7,10 @@ import {
   CRM_STATUS_OPTIONS,
   CRM_VIEW_PRESETS,
   buildCrmCsv,
+  getCrmBatchOptions,
   getDefaultCrmImportMappings,
   getCrmSourceOptions,
+  getLeadBatch,
   parseCrmCsv,
   useCrmStore,
   type CreateLeadInput,
@@ -105,6 +107,7 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
     stageFilter,
     statusFilter,
     sourceFilter,
+    batchFilter,
     viewPreset,
     density,
     sortKey,
@@ -117,6 +120,7 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
     setStageFilter,
     setStatusFilter,
     setSourceFilter,
+    setBatchFilter,
     setViewPreset,
     setDensity,
     setSort,
@@ -125,6 +129,9 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
     addLead,
     updateLead,
     updateLeadCustomField,
+    assignBatchToLeads,
+    renameBatch,
+    clearBatch,
     addLeadNote,
     deleteLead,
     openLead,
@@ -140,11 +147,14 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
   const [deleteConfirmLeadId, setDeleteConfirmLeadId] = useState<string | null>(null);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [csvImportName, setCsvImportName] = useState('');
+  const [csvImportBatchName, setCsvImportBatchName] = useState('');
   const [csvImportContent, setCsvImportContent] = useState('');
   const [csvImportHeaders, setCsvImportHeaders] = useState<string[]>([]);
   const [csvImportRows, setCsvImportRows] = useState<string[][]>([]);
   const [csvImportMappings, setCsvImportMappings] = useState<CrmImportMapping[]>([]);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [batchNameDraft, setBatchNameDraft] = useState('');
+  const [batchDeleteConfirm, setBatchDeleteConfirm] = useState('');
   const bulkUploadRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -153,6 +163,7 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
 
   const visibleColumns = useMemo(() => columns.filter((column) => column.visible), [columns]);
   const sourceOptions = useMemo(() => getCrmSourceOptions(leads), [leads]);
+  const batchOptions = useMemo(() => getCrmBatchOptions(leads), [leads]);
   const customColumns = useMemo(() => columns.filter((column) => column.kind === 'custom'), [columns]);
   const importTargetOptions = useMemo(
     () => [
@@ -172,6 +183,7 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
       .filter((lead) => (stageFilter === 'all' ? true : lead.stage === stageFilter))
       .filter((lead) => (statusFilter === 'all' ? true : lead.status === statusFilter))
       .filter((lead) => (sourceFilter === 'all' ? true : lead.source === sourceFilter))
+      .filter((lead) => (batchFilter === 'all' ? true : getLeadBatch(lead) === batchFilter))
       .filter((lead) => {
         if (!query) return true;
 
@@ -188,7 +200,7 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
         ].some((value) => value.toLowerCase().includes(query));
       })
       .sort((left, right) => compareLeads(left, right, sortKey, sortDirection));
-  }, [leads, searchQuery, sourceFilter, sortDirection, sortKey, stageFilter, statusFilter, viewPreset]);
+  }, [batchFilter, leads, searchQuery, sourceFilter, sortDirection, sortKey, stageFilter, statusFilter, viewPreset]);
 
   const selectedLead = leads.find((lead) => lead.id === detailLeadId) ?? null;
   const selectedLeads = useMemo(
@@ -204,10 +216,24 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
     setSelectedLeadIds((current) => current.filter((leadId) => leads.some((lead) => lead.id === leadId)));
   }, [leads]);
 
+  useEffect(() => {
+    setBatchDeleteConfirm('');
+    setBatchNameDraft(batchFilter === 'all' ? '' : batchFilter);
+  }, [batchFilter]);
+
   const totalLeads = leads.length;
   const hotCount = leads.filter((lead) => lead.score >= 80 && lead.status !== 'closed').length;
   const followUpCount = leads.filter((lead) => lead.status === 'follow-up').length;
   const closedCount = leads.filter((lead) => lead.status === 'closed' || ['won', 'lost'].includes(lead.stage)).length;
+  const batchSummaries = useMemo(() => batchOptions.map((batch) => {
+    const batchLeads = leads.filter((lead) => getLeadBatch(lead) === batch);
+    return {
+      name: batch,
+      count: batchLeads.length,
+      hot: batchLeads.filter((lead) => lead.score >= 80 && lead.status !== 'closed').length,
+      followUp: batchLeads.filter((lead) => lead.status === 'follow-up').length,
+    };
+  }), [batchOptions, leads]);
 
   function updateDraftField<Key extends keyof CreateLeadInput>(key: Key, value: CreateLeadInput[Key]) {
     setLeadDraft((current) => ({ ...current, [key]: value }));
@@ -249,6 +275,7 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
     }
 
     setCsvImportName(file.name);
+    setCsvImportBatchName(file.name.replace(/\.[^.]+$/, '') || `CSV import ${new Date().toLocaleDateString()}`);
     setCsvImportContent(content);
     setCsvImportHeaders(parsed.headers);
     setCsvImportRows(parsed.rows.slice(0, 4));
@@ -282,8 +309,52 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
     );
   }
 
+  function handleAssignSelectedBatch() {
+    const cleanBatch = batchNameDraft.trim();
+    if (!cleanBatch) {
+      setImportMessage('Enter a batch name first.');
+      return;
+    }
+    if (selectedLeadIds.length === 0) {
+      setImportMessage('Select leads before assigning a batch.');
+      return;
+    }
+    const updated = assignBatchToLeads(selectedLeadIds, cleanBatch);
+    setImportMessage(`Assigned ${updated} leads to "${cleanBatch}".`);
+  }
+
+  function handleRenameBatch() {
+    const cleanBatch = batchNameDraft.trim();
+    if (batchFilter === 'all') {
+      setImportMessage('Select a batch to rename.');
+      return;
+    }
+    if (!cleanBatch) {
+      setImportMessage('Enter the new batch name.');
+      return;
+    }
+    const updated = renameBatch(batchFilter, cleanBatch);
+    setImportMessage(`Renamed ${updated} leads from "${batchFilter}" to "${cleanBatch}".`);
+  }
+
+  function handleClearBatch() {
+    if (batchFilter === 'all') {
+      setImportMessage('Select a batch to remove.');
+      return;
+    }
+    if (batchDeleteConfirm !== batchFilter) {
+      setBatchDeleteConfirm(batchFilter);
+      setImportMessage(`Click Remove batch again to clear "${batchFilter}" from its leads.`);
+      return;
+    }
+    const updated = clearBatch(batchFilter);
+    setImportMessage(`Removed batch from ${updated} leads.`);
+    setBatchDeleteConfirm('');
+  }
+
   function handleConfirmImport() {
-    const result = importMappedCsv(csvImportContent, csvImportMappings);
+    const cleanBatchName = csvImportBatchName.trim() || csvImportName.replace(/\.[^.]+$/, '') || `CSV import ${new Date().toLocaleDateString()}`;
+    const result = importMappedCsv(csvImportContent, csvImportMappings, cleanBatchName);
     const skippedParts = [
       result.skippedDuplicateCount > 0 ? `${result.skippedDuplicateCount} duplicates skipped` : '',
       result.skippedInvalidCount > 0 ? `${result.skippedInvalidCount} invalid rows skipped` : '',
@@ -291,11 +362,12 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
     ].filter(Boolean);
     setImportMessage(
       result.importedCount > 0
-        ? `Imported ${result.importedCount} leads from ${csvImportName}.${skippedParts.length ? ` ${skippedParts.join(', ')}.` : ''}`
+        ? `Imported ${result.importedCount} leads into "${cleanBatchName}".${skippedParts.length ? ` ${skippedParts.join(', ')}.` : ''}`
         : `No leads were imported from ${csvImportName}.${skippedParts.length ? ` ${skippedParts.join(', ')}.` : ''}`
     );
     setCsvImportOpen(false);
     setCsvImportName('');
+    setCsvImportBatchName('');
     setCsvImportContent('');
     setCsvImportHeaders([]);
     setCsvImportRows([]);
@@ -545,6 +617,17 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
               </select>
             </label>
             <label className="feature-crm__field">
+              <span>Batch</span>
+              <select value={batchFilter} onChange={(event) => setBatchFilter(event.target.value)}>
+                <option value="all">All batches</option>
+                {batchOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="feature-crm__field">
               <span>Row density</span>
               <select value={density} onChange={(event) => setDensity(event.target.value as 'compact' | 'cozy')}>
                 <option value="compact">Compact</option>
@@ -552,6 +635,55 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
               </select>
             </label>
           </div>
+        </section>
+
+        <section className="feature-crm__panel">
+          <div className="feature-crm__panel-head">
+            <h3>Batches</h3>
+            <span>{batchSummaries.length} saved</span>
+          </div>
+          <label className="feature-crm__field">
+            <span>Batch name</span>
+            <input
+              value={batchNameDraft}
+              onChange={(event) => setBatchNameDraft(event.target.value)}
+              placeholder="New or selected batch name"
+            />
+          </label>
+          <div className="feature-crm__batch-actions">
+            <button type="button" onClick={handleAssignSelectedBatch} disabled={selectedLeadIds.length === 0}>
+              Add selected
+            </button>
+            <button type="button" onClick={handleRenameBatch} disabled={batchFilter === 'all'}>
+              Rename
+            </button>
+            <button type="button" className="is-danger" onClick={handleClearBatch} disabled={batchFilter === 'all'}>
+              {batchDeleteConfirm === batchFilter ? 'Confirm remove' : 'Remove'}
+            </button>
+          </div>
+          {batchSummaries.length > 0 ? (
+            <div className="feature-crm__batch-list">
+              {batchSummaries.map((batch) => (
+                <button
+                  key={batch.name}
+                  type="button"
+                  className={batchFilter === batch.name ? 'is-active' : ''}
+                  onClick={() => setBatchFilter(batch.name)}
+                >
+                  <strong>{batch.name}</strong>
+                  <span>{batch.count} leads</span>
+                  <small>{batch.hot} hot / {batch.followUp} follow-up</small>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="feature-crm__helper">Import a CSV or save leads from Lead Gen to create a named batch.</p>
+          )}
+          {batchFilter !== 'all' ? (
+            <button type="button" className="feature-crm__bulk-button feature-crm__bulk-button--wide" onClick={() => setBatchFilter('all')}>
+              Show all batches
+            </button>
+          ) : null}
         </section>
 
         <section className="feature-crm__panel">
@@ -674,6 +806,15 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
                 Close
               </button>
             </div>
+
+            <label className="feature-crm__field feature-crm__field--wide">
+              <span>Batch name</span>
+              <input
+                value={csvImportBatchName}
+                onChange={(event) => setCsvImportBatchName(event.target.value)}
+                placeholder="Name this import batch"
+              />
+            </label>
 
             <div className="feature-crm__mapping-list">
               {csvImportHeaders.map((header, index) => (

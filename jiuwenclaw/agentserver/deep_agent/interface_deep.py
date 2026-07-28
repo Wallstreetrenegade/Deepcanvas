@@ -55,7 +55,15 @@ from openjiuwen.harness import (
 from openjiuwen.harness.factory import create_deep_agent
 from openjiuwen.harness.subagents.code_agent import create_code_agent
 from openjiuwen.harness.prompts import resolve_language
-from openjiuwen.harness.rails import SkillUseRail, TaskPlanningRail, SecurityRail, SkillEvolutionRail
+from openjiuwen.harness.rails import (
+    SkillUseRail,
+    TaskPlanningRail,
+    SecurityRail,
+    SkillEvolutionRail,
+    EvolutionInterruptRail,
+    configure_skill_evolution_runtime,
+    unconfigure_skill_evolution,
+)
 try:
     from openjiuwen.harness.rails.subagent_rail import SubagentRail
 except ImportError:
@@ -371,6 +379,7 @@ class JiuWenClawDeepAdapter:
         self._lsp_rail: LspRail | None = None
         self._heartbeat_rail: HeartbeatRail | None = None
         self._skill_evolution_rail: SkillEvolutionRail | None = None
+        self._evolution_interrupt_rail: EvolutionInterruptRail | None = None
         self._subagent_rail: SubagentRail | None = None
         self._permission_rail: Any = None
         self._avatar_rail: Any = None
@@ -723,7 +732,7 @@ class JiuWenClawDeepAdapter:
             try:
                 new_tools = create_fn()
                 for tool in new_tools:
-                    Runner.resource_mgr.add_tool(tool)
+                    self._ensure_tool_registered(tool)
                     self._append_tool_card(tool.card)
                     if self._instance is not None and hasattr(self._instance, "ability_manager"):
                         self._instance.ability_manager.add(tool.card)
@@ -734,6 +743,23 @@ class JiuWenClawDeepAdapter:
                 )
                 return [], False
         return current_tools, registered
+
+    def _ensure_tool_registered(self, tool: Any, *, tag: str | None = None) -> bool:
+        """Register a tool only when the resource manager does not already have it."""
+        card = getattr(tool, "card", None)
+        tool_id = getattr(card, "id", None)
+        if tool_id and Runner.resource_mgr.get_tool(tool_id):
+            return False
+        try:
+            if tag is None:
+                Runner.resource_mgr.add_tool(tool)
+            else:
+                Runner.resource_mgr.add_tool(tool, tag=tag)
+            return True
+        except Exception as exc:
+            if "already exist" in str(exc).lower():
+                return False
+            raise
 
     def _remove_registered_tools(self, tools: list[Any]) -> None:
         """Remove tool instances from ability manager and resource manager."""
@@ -1029,6 +1055,67 @@ class JiuWenClawDeepAdapter:
             logger.warning("[JiuWenClaw] SkillEvolutionRail create failed: %s", exc)
             skill_evolution_rail = None
         return skill_evolution_rail
+
+    def _get_evolution_auto_scan_enabled(self, config: dict[str, Any]) -> bool:
+        env_auto_scan = os.getenv("EVOLUTION_AUTO_SCAN")
+        if env_auto_scan is not None:
+            return env_auto_scan.lower() in ("true", "1", "yes")
+        return config.get("evolution", {}).get("auto_scan", False)
+
+    def _refresh_active_evolution_rail_refs(self) -> None:
+        if self._instance is None:
+            return
+        find_rails = getattr(self._instance, "find_rails_by_type", None)
+        if not callable(find_rails):
+            return
+
+        self._skill_evolution_rail = None
+        for rail in find_rails((SkillEvolutionRail,)):
+            if isinstance(rail, SkillEvolutionRail):
+                self._skill_evolution_rail = rail
+                break
+        self._evolution_interrupt_rail = next(iter(find_rails((EvolutionInterruptRail,))), None)
+
+    async def _ensure_active_evolution_rails_registered(self) -> None:
+        if self._instance is None:
+            return
+        evolution_auto_scan = self._get_evolution_auto_scan_enabled(self._config_cache)
+        list_disabled = (
+            getattr(self._skill_manager, "list_execution_disabled_skills", None)
+            if self._skill_manager is not None
+            else None
+        )
+        disabled_skills = list_disabled() if callable(list_disabled) else []
+        await configure_skill_evolution_runtime(
+            self._instance,
+            skills_dir=str(get_agent_skills_dir()),
+            llm=self._model,
+            model=self._config_cache.get("model_name", "gpt-4"),
+            auto_scan=evolution_auto_scan,
+            fuzzy_review=evolution_auto_scan,
+            auto_save=False,
+            disabled_skills=disabled_skills,
+            language=self._resolve_runtime_language(),
+        )
+        self._refresh_active_evolution_rail_refs()
+
+    async def _unconfigure_active_evolution_rails(self) -> None:
+        if self._instance is None:
+            self._skill_evolution_rail = None
+            self._evolution_interrupt_rail = None
+            return
+        rails = [
+            rail
+            for rail in (self._skill_evolution_rail, self._evolution_interrupt_rail)
+            if rail is not None
+        ]
+        unconfigure_skill_evolution(self._instance, team=False)
+        unregister = getattr(self._instance, "unregister_rail", None)
+        if callable(unregister):
+            for rail in rails:
+                await unregister(rail)
+        self._skill_evolution_rail = None
+        self._evolution_interrupt_rail = None
 
     def _build_stream_event_rail(self) -> JiuClawStreamEventRail | None:
         """Build JiuClawStreamEventRail."""
@@ -1365,13 +1452,13 @@ class JiuWenClawDeepAdapter:
 
         for tool_cls in [WebFreeSearchTool, WebFetchWebpageTool]:
             tool_instance = tool_cls(agent_id=agent_id)
-            Runner.resource_mgr.add_tool(tool_instance)
+            self._ensure_tool_registered(tool_instance)
             tool_cards.append(tool_instance.card)
 
         # 付费搜索工具：有任意一个付费 key 就注册
         if is_paid_search_enabled():
             self._paid_search_tool = WebPaidSearchTool(language=self._resolve_runtime_language(), agent_id=agent_id)
-            Runner.resource_mgr.add_tool(self._paid_search_tool)
+            self._ensure_tool_registered(self._paid_search_tool)
             tool_cards.append(self._paid_search_tool.card)
             self._paid_search_registered = True
             tool_cards.insert(0, tool_cards.pop())
@@ -1385,7 +1472,7 @@ class JiuWenClawDeepAdapter:
                         vision_model_config=self._vision_model_config,
                         agent_id=agent_id
                 ):
-                    Runner.resource_mgr.add_tool(tool)
+                    self._ensure_tool_registered(tool)
                     tool_cards.append(tool.card)
                     self._vision_tools.append(tool)
                 self._vision_tools_registered = bool(self._vision_tools)
@@ -1405,7 +1492,7 @@ class JiuWenClawDeepAdapter:
                         audio_model_config=self._audio_model_config,
                         agent_id=agent_id
                 ):
-                    Runner.resource_mgr.add_tool(tool)
+                    self._ensure_tool_registered(tool)
                     tool_cards.append(tool.card)
                     self._audio_tools.append(tool)
                 self._audio_tools_registered = bool(self._audio_tools)
@@ -1419,7 +1506,7 @@ class JiuWenClawDeepAdapter:
         self._video_tool_registered = False
         if self._video_model_config:
             try:
-                Runner.resource_mgr.add_tool(video_understanding)
+                self._ensure_tool_registered(video_understanding)
                 tool_cards.append(video_understanding.card)
                 self._video_tool_registered = True
             except Exception as exc:
@@ -1453,7 +1540,7 @@ class JiuWenClawDeepAdapter:
             ]
             try:
                 for xt in _xiaoyi_tools:
-                    Runner.resource_mgr.add_tool(xt)
+                    self._ensure_tool_registered(xt)
                     tool_cards.append(xt.card)
                 self._xiaoyi_phone_tools_registered = True
                 logger.info(
@@ -1468,8 +1555,7 @@ class JiuWenClawDeepAdapter:
             skill_toolkit = SkillToolkit(manager=self._skill_manager)
             skill_tool_names: list[str] = []
             for tool in skill_toolkit.get_tools():
-                if not Runner.resource_mgr.get_tool(tool.card.id):
-                    Runner.resource_mgr.add_tool(tool)
+                self._ensure_tool_registered(tool)
                 tool_cards.append(tool.card)
                 skill_tool_names.append(tool.card.name)
             logger.info(
@@ -1485,8 +1571,7 @@ class JiuWenClawDeepAdapter:
             from jiuwenclaw.agentserver.tools.features_tools import get_feature_tools
             _feature_tool_names: list[str] = []
             for _ft in get_feature_tools():
-                if not Runner.resource_mgr.get_tool(_ft.card.id):
-                    Runner.resource_mgr.add_tool(_ft)
+                self._ensure_tool_registered(_ft)
                 tool_cards.append(_ft.card)
                 _feature_tool_names.append(_ft.card.name)
             logger.info(
@@ -1500,8 +1585,7 @@ class JiuWenClawDeepAdapter:
             from jiuwenclaw.agentserver.tools.open_design_feature_tools import get_open_design_feature_tools
             _od_tool_names: list[str] = []
             for _odt in get_open_design_feature_tools():
-                if not Runner.resource_mgr.get_tool(_odt.card.id):
-                    Runner.resource_mgr.add_tool(_odt)
+                self._ensure_tool_registered(_odt)
                 tool_cards.append(_odt.card)
                 _od_tool_names.append(_odt.card.name)
             logger.info(
@@ -1777,10 +1861,9 @@ class JiuWenClawDeepAdapter:
             self._context_engineering_rail_mode = None
             logger.info("[JiuWenClawDeepAdapter] ContextEngineeringRail unregistered for plan mode (disabled)")
         # 恢复自演进 rail（仅配置启用时）
-        if self._skill_evolution_rail is None and self._config_cache.get("evolution", {}).get("enabled", False):
-            self._skill_evolution_rail = self._build_skill_evolution_rail(self._config_cache)
+        if self._config_cache.get("evolution", {}).get("enabled", False):
+            await self._ensure_active_evolution_rails_registered()
             if self._skill_evolution_rail is not None:
-                await self._instance.register_rail(self._skill_evolution_rail)
                 logger.info("[JiuWenClawDeepAdapter] SkillEvolutionRail registered for plan mode")
         # 注册 subagent rail（plan 模式下启用）
         if self._subagent_rail is None:
@@ -1791,9 +1874,11 @@ class JiuWenClawDeepAdapter:
 
     async def _update_agent_mode_rails(self) -> None:
         """agent 模式：卸载 plan 专属 rails，按需注册 agent 专属 rails。"""
+        if self._skill_evolution_rail is not None or self._evolution_interrupt_rail is not None:
+            await self._unconfigure_active_evolution_rails()
+            logger.info("[JiuWenClawDeepAdapter] SkillEvolutionRail unregistered for agent mode")
         for attr, label in (
             ("_task_planning_rail", "TaskPlanningRail"),
-            ("_skill_evolution_rail", "SkillEvolutionRail"),
             ("_subagent_rail", "SubagentRail"),
         ):
             rail = getattr(self, attr)
@@ -1876,7 +1961,7 @@ class JiuWenClawDeepAdapter:
                 sub_agent_config=sub_agent_config,
             )
             for ms_tool in multi_session_toolkit.get_tools():
-                Runner.resource_mgr.add_tool(ms_tool)
+                self._ensure_tool_registered(ms_tool)
                 self._instance.ability_manager.add(ms_tool.card)
             logger.info("[JiuWenClawDeepAdapter] MultiSessionToolkit registered for agent mode")
         except Exception as exc:
@@ -1896,8 +1981,7 @@ class JiuWenClawDeepAdapter:
                 if cron_tools:
                     logger.info("[JiuWenClawDeepAdapter] Registering %d cron tools", len(cron_tools))
                     for cron_tool in cron_tools:
-                        if not Runner.resource_mgr.get_tool(cron_tool.card.id):
-                            Runner.resource_mgr.add_tool(cron_tool)
+                        self._ensure_tool_registered(cron_tool)
                         self._instance.ability_manager.add(cron_tool.card)
                     logger.info("[JiuWenClawDeepAdapter] Cron tools registered successfully")
             except Exception as exc:
@@ -1920,7 +2004,7 @@ class JiuWenClawDeepAdapter:
                 metadata=_CRON_TOOL_METADATA.get(),
             )
             for sf_tool in send_file_toolkit.get_tools():
-                Runner.resource_mgr.add_tool(sf_tool)
+                self._ensure_tool_registered(sf_tool)
                 self._instance.ability_manager.add(sf_tool.card)
 
     def _refresh_acp_runtime_tools(
@@ -1962,7 +2046,7 @@ class JiuWenClawDeepAdapter:
                         continue
                 elif not terminal_enabled:
                     continue
-                Runner.resource_mgr.add_tool(tool)
+                self._ensure_tool_registered(tool)
                 self._instance.ability_manager.add(tool.card)
 
         if channel_id == "acp":
@@ -2034,8 +2118,7 @@ class JiuWenClawDeepAdapter:
             _set_user_todo_workspace(self._workspace_dir)
             _set_user_todo_channel_id(_CRON_TOOL_CHANNEL_ID.get())
             for tool in _get_user_todo_tools():
-                if not Runner.resource_mgr.get_tool(tool.card.id):
-                    Runner.resource_mgr.add_tool(tool)
+                self._ensure_tool_registered(tool)
                 self._instance.ability_manager.add(tool.card)
         except ImportError:
             pass
@@ -2650,7 +2733,7 @@ class JiuWenClawDeepAdapter:
             "result_type": "answer",
         }
 
-    def _ensure_evolution_rail_for_slash(self, mode: str) -> str | None:
+    async def _ensure_evolution_rail_for_slash(self, mode: str) -> str | None:
         """Check evolution availability for slash commands; lazily init rail if needed.
 
         Returns None when the rail is (or becomes) available, or an error message string.
@@ -2660,7 +2743,7 @@ class JiuWenClawDeepAdapter:
         if not self._config_cache.get("evolution", {}).get("enabled", False):
             return "演进功能未启用。"
         if self._skill_evolution_rail is None:
-            self._skill_evolution_rail = self._build_skill_evolution_rail(self._config_cache)
+            await self._ensure_active_evolution_rails_registered()
         if self._skill_evolution_rail is None:
             return "演进功能初始化失败。"
         return None
@@ -2677,25 +2760,25 @@ class JiuWenClawDeepAdapter:
         stripped = query.strip()
 
         if stripped.startswith("/solidify"):
-            err = self._ensure_evolution_rail_for_slash(mode)
+            err = await self._ensure_evolution_rail_for_slash(mode)
             if err:
                 return {"output": err, "result_type": "error"}
             return await self._handle_solidify_command(stripped)
 
         if stripped.startswith("/evolve_simplify"):
-            err = self._ensure_evolution_rail_for_slash(mode)
+            err = await self._ensure_evolution_rail_for_slash(mode)
             if err:
                 return {"output": err, "result_type": "error"}
             return await self._handle_evolve_simplify_command(stripped)
 
         if stripped.startswith("/evolve_list"):
-            err = self._ensure_evolution_rail_for_slash(mode)
+            err = await self._ensure_evolution_rail_for_slash(mode)
             if err:
                 return {"output": err, "result_type": "error"}
             return await self._handle_evolve_list_command(stripped)
 
         if stripped.startswith("/evolve"):
-            err = self._ensure_evolution_rail_for_slash(mode)
+            err = await self._ensure_evolution_rail_for_slash(mode)
             if err:
                 return {"output": err, "result_type": "error"}
             return await self._handle_evolve_command(stripped, session_id)

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import os
+import shutil
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -31,6 +32,29 @@ if not _config_file.exists() or (_old_workspace.exists() and not _new_workspace.
     prepare_workspace(overwrite=False)
 
 load_dotenv(dotenv_path=get_env_file())
+
+
+def _ensure_windows_git_on_path() -> None:
+    if shutil.which("git") is not None:
+        return
+    if sys.platform != "win32":
+        return
+    for candidate in (
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "cmd",
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "bin",
+        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Git" / "cmd",
+        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Git" / "bin",
+    ):
+        if (candidate / "git.exe").exists():
+            os.environ["PATH"] = f"{candidate}{os.pathsep}{os.environ.get('PATH', '')}"
+            return
+
+
+def _ensure_git_identity_env() -> None:
+    os.environ.setdefault("GIT_AUTHOR_NAME", "Deep Canvas")
+    os.environ.setdefault("GIT_AUTHOR_EMAIL", "deepcanvas@localhost")
+    os.environ.setdefault("GIT_COMMITTER_NAME", os.environ["GIT_AUTHOR_NAME"])
+    os.environ.setdefault("GIT_COMMITTER_EMAIL", os.environ["GIT_AUTHOR_EMAIL"])
 
 
 def _runtime_python() -> str:
@@ -70,13 +94,18 @@ def _start_open_design_sidecar() -> subprocess.Popen | None:
     open_design_dir = repo_root / "packages" / "open-design"
     if not open_design_dir.exists():
         return None
-    cmd = ["pnpm", "exec", "od", "--port", "7456", "--host", "127.0.0.1", "--no-open"]
+    if shutil.which("pnpm") is None:
+        print("[jiuwenclaw.app] skipping OpenDesign daemon: pnpm is not installed or not on PATH")
+        return None
+    cmd = ["pnpm", "exec", "od", "daemon", "start", "--headless", "--port", "7456", "--host", "127.0.0.1"]
     if sys.platform == "win32":
         cmd = ["cmd", "/c", *cmd]
     return subprocess.Popen(cmd, cwd=str(open_design_dir))
 
 
 def main() -> None:
+    _ensure_windows_git_on_path()
+    _ensure_git_identity_env()
     python = _runtime_python()
 
     agent = subprocess.Popen([python, "-m", "jiuwenclaw.app_agentserver"])

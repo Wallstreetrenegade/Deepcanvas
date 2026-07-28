@@ -1,52 +1,235 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
+  BarChart3,
+  Clapperboard,
+  Download,
+  Image as ImageIcon,
+  Maximize2,
+  Megaphone,
+  Minimize2,
+  Search,
+  type LucideIcon,
+  MonitorSmartphone,
+  Presentation,
+  Sparkles,
+  Wand2,
+} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {
   useAppBuilderStore,
   type ChatMessage,
+  type OpenDesignCatalogItem,
   type ProjectSummary,
 } from '../../stores/appBuilderStore';
 import './AppBuilderWorkspace.css';
 
-type BuildStudioSelectorKey = 'artifact' | 'designSystem' | 'plugin' | 'output' | 'skill';
+type StudioModeId = 'prototype' | 'live-artifact' | 'deck' | 'image' | 'video' | 'hyperframes' | 'marketing';
+type TemplateKind = StudioModeId | 'audio';
+type TemplateTone = 'teal' | 'blue' | 'lime' | 'amber' | 'violet' | 'rose';
 
-const BUILD_STUDIO_SELECTORS: Array<{
-  key: BuildStudioSelectorKey;
+const DEFAULT_OPEN_DESIGN_BASE_URL = 'http://127.0.0.1:7456';
+
+interface BuildTemplate {
+  id: string;
+  title: string;
+  author: string;
+  source: string;
+  kind: TemplateKind;
+  scene: string;
+  description: string;
+  prompt: string;
+  tone: TemplateTone;
+  tags: string[];
+  previewUrl?: string;
+  previewUrls?: string[];
+  previewHtmlSrc?: string;
+}
+
+const STUDIO_MODES: Array<{
+  id: StudioModeId;
   label: string;
-  options: string[];
+  context: string;
+  Icon: LucideIcon;
 }> = [
   {
-    key: 'artifact',
-    label: 'Artifact',
-    options: ['Auto', 'Landing page', 'Web app', 'Dashboard', 'Mobile app', 'Pitch deck', 'Social post', 'Marketing email', 'PM spec', 'OKR scorecard'],
+    id: 'prototype',
+    label: 'Prototype',
+    context: 'High-fidelity web, desktop, or mobile prototype. Use this for landing pages, websites, apps, tools, and product screens.',
+    Icon: MonitorSmartphone,
   },
   {
-    key: 'designSystem',
-    label: 'Design systems',
-    options: ['Auto', 'Brand from brief', 'Imported brand', 'SaaS clean', 'Editorial', 'Executive', 'Playful', 'Luxury', 'Dark premium'],
+    id: 'live-artifact',
+    label: 'Live artifact',
+    context: 'Live artifact or dashboard. Use this for analytics, reports, KPI screens, admin views, data tools, and interactive artifacts.',
+    Icon: BarChart3,
   },
   {
-    key: 'plugin',
-    label: 'Plugin',
-    options: ['Auto', 'Default generation', 'Figma migration', 'Code migration', 'React export', 'Next.js export', 'Vue export', 'Media generation', 'Design refine'],
+    id: 'deck',
+    label: 'Slide deck',
+    context: 'Slide deck. Use this for magazine decks, weekly updates, pitch decks, book summaries, sales decks, and presentations.',
+    Icon: Presentation,
   },
   {
-    key: 'output',
-    label: 'Output',
-    options: ['Auto', 'HTML/CSS/JS', 'React', 'Next.js', 'Vue', 'PDF', 'PPTX', 'MP4'],
+    id: 'image',
+    label: 'Image',
+    context: 'Image generation or image editing. Use this for hero images, product mockups, visual assets, and image transformations.',
+    Icon: ImageIcon,
   },
   {
-    key: 'skill',
-    label: 'Skill',
-    options: ['Auto', 'web-prototype', 'saas-landing', 'dashboard', 'mobile-app', 'mobile-onboarding', 'social-carousel', 'email-marketing', 'pm-spec', 'team-okrs', 'html-ppt', 'hyperframes'],
+    id: 'video',
+    label: 'Video',
+    context: 'Video or motion output. Use this for short videos, animated explainers, visual sequences, and motion graphics.',
+    Icon: Clapperboard,
+  },
+  {
+    id: 'hyperframes',
+    label: 'HyperFrames',
+    context: 'HyperFrames agent-native motion graphics. Use this for programmable motion, animated frames, and exportable motion artifacts.',
+    Icon: Sparkles,
+  },
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    context: 'Marketing strategy and growth artifacts. Use this for CRO, copywriting, SEO, ad creative, funnels, launches, email, social, sales enablement, pricing, and campaign assets.',
+    Icon: Megaphone,
   },
 ];
 
-const DEFAULT_BUILD_STUDIO_SELECTIONS: Record<BuildStudioSelectorKey, string> = {
-  artifact: 'Auto',
-  designSystem: 'Auto',
-  plugin: 'Auto',
-  output: 'Auto',
-  skill: 'Auto',
+const TEMPLATE_KIND_LABELS: Record<TemplateKind | 'all', string> = {
+  all: 'All',
+  prototype: 'Prototype',
+  'live-artifact': 'Live Artifact',
+  deck: 'Slides',
+  image: 'Image',
+  video: 'Video',
+  hyperframes: 'HyperFrames',
+  marketing: 'Marketing',
+  audio: 'Audio',
 };
+
+const FALLBACK_STUDIO_TEMPLATES: BuildTemplate[] = [
+  {
+    id: 'sales-command-live-dashboard',
+    title: 'Sales Command Live Dashboard',
+    author: '@deep-canvas',
+    source: 'Deep Canvas',
+    kind: 'live-artifact',
+    scene: 'Dashboards',
+    description: 'Pipeline health, quota pacing, account risk, forecast views, and manager alerts in a full app shell.',
+    prompt: 'Use the Sales Command Live Dashboard template for a sales team with KPI cards, charts, filters, pipeline table, alerts, and drilldowns.',
+    tone: 'teal',
+    tags: ['dashboard', 'sales', 'live-artifact'],
+  },
+  {
+    id: 'founder-pitch-deck',
+    title: 'Founder Pitch Deck',
+    author: '@open-design',
+    source: 'Open Design',
+    kind: 'deck',
+    scene: 'Pitch & business',
+    description: 'A polished investor narrative with problem, traction, market, product, business model, and ask slides.',
+    prompt: 'Use the Founder Pitch Deck template and create a polished investor pitch deck with strong story flow and presentation controls.',
+    tone: 'blue',
+    tags: ['deck', 'pitch', 'business'],
+  },
+  {
+    id: 'saas-landing-prototype',
+    title: 'Premium SaaS Landing Page',
+    author: '@deep-canvas',
+    source: 'Deep Canvas',
+    kind: 'prototype',
+    scene: 'Landing & marketing',
+    description: 'Conversion-focused landing page with hero, product visual, social proof, pricing, FAQ, and polished interactions.',
+    prompt: 'Use the Premium SaaS Landing Page template and build a high-converting SaaS landing page with a complete visual system.',
+    tone: 'violet',
+    tags: ['prototype', 'landing', 'marketing'],
+  },
+  {
+    id: 'analytics-board',
+    title: 'Executive Analytics Board',
+    author: '@open-design',
+    source: 'Open Design',
+    kind: 'live-artifact',
+    scene: 'Dashboards',
+    description: 'Board-ready operating dashboard with KPI rollups, variance notes, segmented charts, and forecast panels.',
+    prompt: 'Use the Executive Analytics Board template for a live business dashboard with board-level KPIs, charts, filters, and notes.',
+    tone: 'amber',
+    tags: ['dashboard', 'analytics', 'live-artifact'],
+  },
+  {
+    id: 'mobile-onboarding',
+    title: 'Mobile App Onboarding',
+    author: '@deep-canvas',
+    source: 'Deep Canvas',
+    kind: 'prototype',
+    scene: 'Apps',
+    description: 'High-fidelity mobile onboarding flow with welcome, personalization, permissions, progress, and final activation.',
+    prompt: 'Use the Mobile App Onboarding template and create a polished mobile onboarding prototype with multiple screens and interactions.',
+    tone: 'rose',
+    tags: ['prototype', 'mobile', 'app'],
+  },
+  {
+    id: 'image-poster-system',
+    title: 'Campaign Poster System',
+    author: '@open-design',
+    source: 'Open Design',
+    kind: 'image',
+    scene: 'Marketing images',
+    description: 'Image-led campaign concept with art direction, poster variants, headline lockups, and export-ready compositions.',
+    prompt: 'Use the Campaign Poster System template and create image-led campaign poster concepts with strong art direction.',
+    tone: 'lime',
+    tags: ['image', 'campaign', 'poster'],
+  },
+  {
+    id: 'hyperframes-launch-motion',
+    title: 'Launch Motion Frames',
+    author: '@deep-canvas',
+    source: 'Deep Canvas',
+    kind: 'hyperframes',
+    scene: 'Product promos',
+    description: 'Agent-native motion frames for product launches, with beat structure, frame captions, and visual transitions.',
+    prompt: 'Use the Launch Motion Frames template and build HyperFrames-style motion graphics for a product launch.',
+    tone: 'blue',
+    tags: ['hyperframes', 'motion', 'launch'],
+  },
+  {
+    id: 'shortform-video-storyboard',
+    title: 'Shortform Video Storyboard',
+    author: '@open-design',
+    source: 'Open Design',
+    kind: 'video',
+    scene: 'Product promos',
+    description: 'A structured shortform video concept with scenes, captions, pacing, hooks, and visual treatment.',
+    prompt: 'Use the Shortform Video Storyboard template and create a video artifact with scenes, captions, pacing, and frame direction.',
+    tone: 'teal',
+    tags: ['video', 'storyboard', 'shortform'],
+  },
+  {
+    id: 'weekly-update-deck',
+    title: 'Weekly Update Deck',
+    author: '@deep-canvas',
+    source: 'Deep Canvas',
+    kind: 'deck',
+    scene: 'Product & sales',
+    description: 'A crisp operating update deck with wins, misses, metrics, blockers, decisions, and next-week priorities.',
+    prompt: 'Use the Weekly Update Deck template and create a concise operating update deck with metrics and decision slides.',
+    tone: 'amber',
+    tags: ['deck', 'weekly update', 'sales'],
+  },
+  {
+    id: 'growth-campaign-system',
+    title: 'Growth Campaign System',
+    author: '@deep-canvas',
+    source: 'Marketing Skills',
+    kind: 'marketing',
+    scene: 'Campaigns',
+    description: 'Positioning, hooks, landing page angle, ad creative, email/social rollout, and conversion plan in one campaign workspace.',
+    prompt: 'Use the Growth Campaign System template and build a complete marketing campaign with positioning, CRO-focused landing direction, ad creative, email/social assets, and launch plan.',
+    tone: 'rose',
+    tags: ['marketing', 'campaign', 'cro'],
+  },
+];
 
 /**
  * AppBuilderWorkspace - AI-powered landing-page / website / app builder.
@@ -57,11 +240,14 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
   const {
     files, activeFile, previewMode, chat, busy, llmReady,
     currentProjectId, projectName, projects, lastError,
-    isLoaded, isLoading, sending, error, backgroundNotice,
+    isLoaded, isLoading, sending, error, backgroundNotice, creatingArtifact,
+    openDesign, loadingOpenDesign,
     loadState, clearError,
+    loadOpenDesignCatalog,
     setActiveFile, setPreviewMode,
     createFile, updateFile, deleteFile, renameFile,
     resetProject, sendChat, clearChat,
+    downloadZip,
     saveProject, loadProject, deleteProject, renameProject, duplicateProject, newProject,
   } = s;
 
@@ -73,7 +259,11 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
   const [draftContent, setDraftContent] = useState('');
   const [isEditingFile, setIsEditingFile] = useState(false);
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
-  const [buildSelections, setBuildSelections] = useState<Record<BuildStudioSelectorKey, string>>(DEFAULT_BUILD_STUDIO_SELECTIONS);
+  const [studioMode, setStudioMode] = useState<StudioModeId>('prototype');
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [templateKind, setTemplateKind] = useState<TemplateKind | 'all'>('all');
+  const [templateScene, setTemplateScene] = useState('all');
+  const [templateSearch, setTemplateSearch] = useState('');
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const didForceEditorDefaultRef = useRef(false);
 
@@ -82,6 +272,12 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
     didForceEditorDefaultRef.current = true;
     if (previewMode !== 'code') void setPreviewMode('code');
   }, [isLoaded, previewMode, setPreviewMode]);
+
+  useEffect(() => {
+    if (previewMode === 'templates' && !openDesign?.catalog?.plugins?.length && !loadingOpenDesign) {
+      void loadOpenDesignCatalog();
+    }
+  }, [loadOpenDesignCatalog, loadingOpenDesign, openDesign?.catalog?.plugins?.length, previewMode]);
 
   // Sync draft content when active file changes and we're not mid-edit.
   useEffect(() => {
@@ -99,6 +295,29 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
   const fileTree = useMemo(() => buildFileTree(sortedPaths), [sortedPaths]);
   const previewSrc = useMemo(() => buildPreviewSrcDoc(files), [files]);
   const fileCount = sortedPaths.length;
+  const studioTemplates = useMemo(
+    () => buildTemplateCatalog(openDesign?.catalog?.plugins ?? [], openDesign?.baseUrl),
+    [openDesign?.baseUrl, openDesign?.catalog?.plugins],
+  );
+  const filteredTemplates = useMemo(() => {
+    const query = templateSearch.trim().toLowerCase();
+    return studioTemplates.filter((template) => {
+      const matchesKind = templateKind === 'all' || template.kind === templateKind;
+      if (!matchesKind) return false;
+      const matchesScene = templateScene === 'all' || template.scene === templateScene;
+      if (!matchesScene) return false;
+      if (!query) return true;
+      return [
+        template.title,
+        template.author,
+        template.source,
+        template.scene,
+        template.description,
+        ...template.tags,
+        TEMPLATE_KIND_LABELS[template.kind],
+      ].join(' ').toLowerCase().includes(query);
+    });
+  }, [studioTemplates, templateKind, templateScene, templateSearch]);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -159,16 +378,23 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
       await updateFile(activeFile, draftContent);
       setIsEditingFile(false);
     }
-    if (previewMode !== 'code') {
-      await setPreviewMode('code');
+    const effectiveMode = inferStudioModeFromMessage(msg, studioMode);
+    if (effectiveMode !== studioMode) {
+      setStudioMode(effectiveMode);
     }
-    await sendChat(withBuildStudioSelections(msg, buildSelections));
+    if (previewMode !== 'preview') {
+      await setPreviewMode('preview');
+    }
+    await sendChat(withBuildStudioAutoContext(msg, effectiveMode));
   };
 
-  const handleModeChange = async (mode: 'code' | 'preview' | 'projects') => {
+  const handleModeChange = async (mode: 'code' | 'preview' | 'projects' | 'templates') => {
     if (isEditingFile && activeFile) {
       await updateFile(activeFile, draftContent);
       setIsEditingFile(false);
+    }
+    if (mode !== 'preview') {
+      setIsPreviewExpanded(false);
     }
     await setPreviewMode(mode);
   };
@@ -205,7 +431,6 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
 
   const handleReset = async () => {
     if (!window.confirm('Clear this workspace and remove all current files/folders? Saved projects will not be deleted.')) return;
-    setBuildSelections(DEFAULT_BUILD_STUDIO_SELECTIONS);
     setCollapsedFolders({});
     await resetProject();
   };
@@ -241,6 +466,11 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
     setIsEditingFile(false);
   };
 
+  const handleUseTemplate = (template: BuildTemplate) => {
+    setStudioMode(template.kind === 'audio' ? 'video' : template.kind);
+    setChatInput(template.prompt);
+  };
+
   const handleSaveProject = async () => {
     if (currentProjectId) {
       // Overwrite current saved project silently
@@ -258,6 +488,15 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
     await saveProject({ name: name.trim() });
   };
 
+  const handleDownloadProject = async () => {
+    if (sortedPaths.length === 0) return;
+    if (isEditingFile && activeFile) {
+      await updateFile(activeFile, draftContent);
+      setIsEditingFile(false);
+    }
+    await downloadZip();
+  };
+
   const handleNewProject = async () => {
     if (!window.confirm('Start a new blank project? Unsaved changes will be lost.')) return;
     await newProject();
@@ -271,7 +510,7 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
   };
 
   return (
-    <div className="ab animate-rise">
+    <div className={`ab animate-rise ${isPreviewExpanded ? 'is-preview-expanded' : ''}`}>
       {error ? (
         <div className="ab__banner ab__banner--error">
           <span>{error}</span>
@@ -322,6 +561,23 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
             </button>
             <button
               type="button"
+              className={`ab__mode-tab ${previewMode === 'templates' ? 'is-active' : ''}`}
+              onClick={() => void handleModeChange('templates')}
+            >
+              Templates
+            </button>
+            <button
+              type="button"
+              className="ab__mode-action"
+              onClick={() => void handleDownloadProject()}
+              disabled={creatingArtifact || sortedPaths.length === 0}
+              title={sortedPaths.length === 0 ? 'Build something before downloading code' : 'Download project code as a zip'}
+            >
+              <Download size={14} aria-hidden="true" />
+              <span>{creatingArtifact ? 'Packaging...' : 'Download'}</span>
+            </button>
+            <button
+              type="button"
               className="ab__btn ab__btn--ghost ab__btn--mini ab__mode-clear"
               onClick={handleReset}
               title="Clear workspace files and folders"
@@ -343,11 +599,22 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
                 </>
               ) : null}
             </div>
+            {previewMode === 'preview' ? (
+              <button
+                type="button"
+                className="ab__expand-btn"
+                onClick={() => setIsPreviewExpanded((value) => !value)}
+                title={isPreviewExpanded ? 'Exit fullscreen preview' : 'Expand preview'}
+                aria-label={isPreviewExpanded ? 'Exit fullscreen preview' : 'Expand preview'}
+              >
+                {isPreviewExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              </button>
+            ) : null}
             <button
               type="button"
               className="ab__project-chip"
               onClick={handleRenameProjectInline}
-              title={currentProjectId ? 'Rename this saved project' : 'Unsaved — click Save to store it'}
+              title={currentProjectId ? 'Rename this saved project' : 'Unsaved - click Save to store it'}
             >
               <span className={`ab__project-dot ${currentProjectId ? 'is-saved' : 'is-unsaved'}`} />
               <span className="ab__project-name">{projectName || 'Untitled project'}</span>
@@ -367,31 +634,27 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
             </button>
           </nav>
 
-          <div className="ab__od-controls" aria-label="Open Design build controls">
-            {BUILD_STUDIO_SELECTORS.map((item) => (
-              <label key={item.key} className="ab__od-field">
-                <span>{item.label}</span>
-                <select
-                  value={buildSelections[item.key]}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    setBuildSelections((prev) => ({ ...prev, [item.key]: value }));
-                  }}
-                >
-                  {item.options.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          </div>
-
           {previewMode === 'preview' ? (
             <iframe
               className="ab__preview-frame"
               title="Live preview"
               srcDoc={previewSrc}
               sandbox="allow-scripts allow-forms allow-same-origin"
+            />
+          ) : previewMode === 'templates' ? (
+            <TemplatesGallery
+              templates={filteredTemplates}
+              allTemplates={studioTemplates}
+              activeKind={templateKind}
+              activeScene={templateScene}
+              search={templateSearch}
+              onKindChange={(kind) => {
+                setTemplateKind(kind);
+                setTemplateScene('all');
+              }}
+              onSceneChange={setTemplateScene}
+              onSearchChange={setTemplateSearch}
+              onUseTemplate={handleUseTemplate}
             />
           ) : previewMode === 'projects' ? (
             <ProjectsGallery
@@ -503,6 +766,15 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
               <button type="button" className="ab__btn ab__btn--primary ab__btn--mini" onClick={handleSaveProject}>
                 {currentProjectId ? 'Save' : 'Save project'}
               </button>
+              <button
+                type="button"
+                className="ab__btn ab__btn--mini"
+                onClick={() => void handleDownloadProject()}
+                disabled={creatingArtifact || sortedPaths.length === 0}
+                title={sortedPaths.length === 0 ? 'Build something before downloading code' : 'Download project code as a zip'}
+              >
+                {creatingArtifact ? 'Packaging...' : 'Download'}
+              </button>
               <button type="button" className="ab__btn ab__btn--ghost ab__btn--mini" onClick={() => void clearChat()} title="Clear conversation">
                 Clear
               </button>
@@ -510,6 +782,21 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
           </header>
 
           <div className="ab__chat-scroll">
+            <div className="ab__studio-modes" aria-label="Build type">
+              {STUDIO_MODES.map(({ id, label, context, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`ab__studio-mode ${studioMode === id ? 'is-active' : ''}`}
+                  onClick={() => setStudioMode(id)}
+                  title={context}
+                  aria-pressed={studioMode === id}
+                >
+                  <Icon size={14} strokeWidth={1.8} aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
             {chat.length === 0 ? (
               <div className="ab__chat-empty">
                 <strong>Describe what you want built.</strong>
@@ -519,21 +806,6 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
             {chat.map((m) => (
               <ChatBubble key={m.id} message={m} />
             ))}
-            {busy || sending ? (
-              <div className="ab__chat-busy">
-                <div className="ab__chat-busy-head">
-                  <span className="ab__chat-busy-title">{progressHeadline || 'Working'}</span>
-                  <span className="ab__chat-busy-time">{Math.max(1, Math.floor(progressElapsedMs / 1000))}s</span>
-                </div>
-                <div className="ab__chat-busy-steps">
-                  {progressSteps.map((step) => (
-                    <span key={step.label} className={`ab__chat-busy-step is-${step.status}`}>
-                      {step.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
             <div ref={chatEndRef} />
           </div>
 
@@ -579,15 +851,57 @@ export function AppBuilderWorkspace(_props: { onExit: () => void }) {
 // Helpers
 // --------------------------------------------------------------------------
 
-function withBuildStudioSelections(message: string, selections: Record<BuildStudioSelectorKey, string>): string {
-  const active = BUILD_STUDIO_SELECTORS
-    .map((item) => [item.label, selections[item.key]] as const)
-    .filter(([, value]) => value && value !== 'Auto');
+function withBuildStudioAutoContext(message: string, modeId: StudioModeId): string {
+  const mode = STUDIO_MODES.find((item) => item.id === modeId) ?? STUDIO_MODES[0];
+  return `Build Studio auto mode:
+- Infer the artifact from the user's plain-language request.
+- Effective mode id: ${mode.id}.
+- Effective build type: ${mode.label}.
+- Effective type guidance: ${mode.context}
+- Open Design scenario route:
+  - Prototype: use the default Open Design generation/router path ('od-default' when free-form, 'od-new-generation' for direct prototype generation).
+  - Live artifact: use dashboard/live-artifact templates and data-artifact skills; build an actual app/dashboard surface.
+  - Slide deck: use deck templates and presentation skills; use 'example-pptx-html-fidelity-audit' only when auditing or exporting PPTX quality.
+  - Image: use 'od-media-generation' and the configured image provider from Configuration; render the actual image in Preview.
+  - Video: use 'od-media-generation' with configured video providers; render playable output in Preview.
+  - HyperFrames: use the local HTML-video/HyperFrames workflow and templates; render the motion/composition surface in Preview.
+  - Marketing: use the marketing skill family first: product-marketing, copywriting, CRO, ad-creative, ads, SEO/content, analytics, pricing, launch, email, social, sales-enablement, screenshots-marketing, and marketing-psychology. Build previewable campaign assets, pages, decks, emails, social cards, or plans.
+  - Export requests: use 'od-react-export' or 'od-nextjs-export' only when the user asks to hand off/export.
+  - Figma/code migration: use 'od-figma-migration' or 'od-code-migration' only when the user gives a Figma source, URL, repo, or existing codebase migration request.
+- If the user's request explicitly asks for a different artifact type, honor the user's words over the selected type.
+- Dashboard, analytics, KPI, admin, reporting, CRM, pipeline, or command-center requests must be treated as Live artifact dashboards, not landing pages or marketing prototypes.
+- Default to high-fidelity prototypes for web, desktop, and mobile when the request is ambiguous.
+- Also support live artifacts and dashboards; decks including magazine decks, weekly updates, and pitches; images; video; and HyperFrames motion graphics.
+- Keep the user experience chat-first. Do not ask the user to pick plugins, skills, design systems, models, or output modes unless absolutely necessary.
+- Emit every result as previewable project files so the Preview tab renders the output immediately, then continue collaborating through chat for edits and additions.
+- Never hand off image, video, or HyperFrames output as only a link. The output must be a file in the project and/or an index.html wrapper that renders the actual media in Preview.
+- For Image mode, the Preview must show the image itself. For Video mode, the Preview must show a playable video or motion preview. For HyperFrames, the Preview must show the motion/composition surface.
 
-  if (active.length === 0) return message;
+User request:
+${message}`;
+}
 
-  const guidance = active.map(([label, value]) => `- ${label}: ${value}`).join('\n');
-  return `Build Studio controls (treat non-Auto values as build constraints; use Open Design skills, plugins, design systems, and output modes when available):\n${guidance}\n\nUser request:\n${message}`;
+function inferStudioModeFromMessage(message: string, fallback: StudioModeId): StudioModeId {
+  const text = message.toLowerCase();
+  if (/\b(dashboard|analytics|kpi|metric|admin|reporting|crm|pipeline|command center|ops center|live artifact|data console)\b/.test(text)) {
+    return 'live-artifact';
+  }
+  if (/\b(slide deck|deck|presentation|pitch|weekly update|magazine deck|ppt)\b/.test(text)) {
+    return 'deck';
+  }
+  if (/\b(hyperframes?|motion graphics?|storyboard|animation|video)\b/.test(text)) {
+    return text.includes('hyperframe') ? 'hyperframes' : 'video';
+  }
+  if (/\b(image|photo|picture|mockup|visual asset|edit this image)\b/.test(text)) {
+    return 'image';
+  }
+  if (/\b(marketing|campaign|cro|copywriting|copy|seo|ads?|ad creative|funnel|launch|email sequence|social content|pricing|positioning|sales enablement|lead magnet|landing angle)\b/.test(text)) {
+    return 'marketing';
+  }
+  if (/\b(landing page|website|homepage|prototype|mobile app|desktop app|web app)\b/.test(text)) {
+    return 'prototype';
+  }
+  return fallback;
 }
 
 interface FileTreeNode {
@@ -732,20 +1046,30 @@ function FileGlyph({ path }: { path: string }) {
 
 function ChatBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
-  const body = isUser ? message.content : stripOpsPayload(message.content);
+  const body = normalizeChatBody(isUser ? stripBuildStudioAutoContext(message.content) : stripOpsPayload(message.content));
   return (
     <div className={`ab__msg ${isUser ? 'ab__msg--user' : 'ab__msg--assistant'}`}>
       <div className="ab__msg-role">{isUser ? 'You' : 'Builder'}</div>
-      {body ? <div className="ab__msg-body">{body}</div> : null}
-      {!isUser && message.opsApplied && message.opsApplied.length > 0 ? (
-        <ul className="ab__msg-ops">
-          {message.opsApplied.map((op, i) => (
-            <li key={i}><code>{op}</code></li>
-          ))}
-        </ul>
+      {body ? (
+        <div className={`ab__msg-body ${isUser ? '' : 'ab__msg-body--markdown'}`}>
+          {isUser ? body : <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>}
+        </div>
       ) : null}
     </div>
   );
+}
+
+function stripBuildStudioAutoContext(content: string): string {
+  if (!content) return '';
+  const trimmed = content.trim();
+  if (!trimmed.toLowerCase().startsWith('build studio auto mode:')) {
+    return trimmed;
+  }
+  const parts = trimmed.split(/\nUser request:\s*/i);
+  if (parts.length > 1) {
+    return parts.slice(1).join('\nUser request:\n').trim();
+  }
+  return trimmed;
 }
 
 function stripOpsPayload(content: string): string {
@@ -754,6 +1078,10 @@ function stripOpsPayload(content: string): string {
     .replace(/```\s*json-ops[\s\S]*?```/gi, '')
     .replace(/```\s*json-ops[\s\S]*$/gi, '')
     .trim();
+}
+
+function normalizeChatBody(content: string): string {
+  return (content || '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -765,6 +1093,10 @@ function stripOpsPayload(content: string): string {
 function buildPreviewSrcDoc(files: Record<string, string>): string {
   const indexHtml = files['index.html'];
   if (!indexHtml) {
+    const mediaPath = pickPrimaryMediaFile(files);
+    if (mediaPath) {
+      return buildMediaPreviewDoc(mediaPath, files);
+    }
     return `<!doctype html><html><body style="font-family:system-ui;padding:24px;background:#0b0d10;color:#9aa3ad"><h2 style="color:#f5f5f7">No index.html</h2><p>Ask the builder to create an <code>index.html</code> to see a preview.</p></body></html>`;
   }
   let out = indexHtml;
@@ -805,6 +1137,22 @@ function buildPreviewSrcDoc(files: Record<string, string>): string {
     },
   );
 
+  // Inline local media so generated videos/audio render in the preview iframe.
+  out = out.replace(
+    /(<(?:video|audio)\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi,
+    (match, prefix: string, src: string, suffix: string) => {
+      const asset = inlinePreviewAsset(src, files);
+      return asset ? `${prefix}${asset}${suffix}` : match;
+    },
+  );
+  out = out.replace(
+    /(<source\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi,
+    (match, prefix: string, src: string, suffix: string) => {
+      const asset = inlinePreviewAsset(src, files);
+      return asset ? `${prefix}${asset}${suffix}` : match;
+    },
+  );
+
   // Inline local CSS url(...) asset references after stylesheets are embedded.
   out = out.replace(
     /url\((['"]?)([^'")]+)\1\)/gi,
@@ -815,6 +1163,64 @@ function buildPreviewSrcDoc(files: Record<string, string>): string {
   );
 
   return out;
+}
+
+const IMAGE_EXTENSIONS = new Set(['svg', 'png', 'jpg', 'jpeg', 'gif', 'webp']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'ogg', 'm4a']);
+
+function pickPrimaryMediaFile(files: Record<string, string>): string | null {
+  const paths = Object.keys(files).sort();
+  const preferred = paths.filter((path) => /(^|\/)(result|output|preview|generated|image|video|hyperframes|motion|poster|hero)\./i.test(path));
+  const candidates = [...preferred, ...paths];
+  for (const path of candidates) {
+    const ext = path.split('.').pop()?.toLowerCase() || '';
+    if (IMAGE_EXTENSIONS.has(ext) || VIDEO_EXTENSIONS.has(ext) || AUDIO_EXTENSIONS.has(ext)) {
+      return path;
+    }
+  }
+  return null;
+}
+
+function buildMediaPreviewDoc(path: string, files: Record<string, string>): string {
+  const src = inlinePreviewAsset(path, files);
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  const safeName = escapeHtml(path);
+  let body = `<div class="empty">The media output could not be rendered.</div>`;
+  if (src && IMAGE_EXTENSIONS.has(ext)) {
+    body = `<img class="media image" src="${src}" alt="${safeName}" />`;
+  } else if (src && VIDEO_EXTENSIONS.has(ext)) {
+    body = `<video class="media video" src="${src}" controls playsinline autoplay muted loop></video>`;
+  } else if (src && AUDIO_EXTENSIONS.has(ext)) {
+    body = `<audio class="audio" src="${src}" controls></audio>`;
+  }
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${safeName}</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; background: #05070a; color: #e8eef2; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { min-height: 100vh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+      .shell { width: min(100%, 1440px); min-height: calc(100vh - 48px); display: grid; grid-template-rows: auto 1fr; gap: 16px; }
+      .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #9aa7ad; font-size: 13px; letter-spacing: 0; }
+      .name { color: #eef7f8; font-weight: 700; overflow-wrap: anywhere; }
+      .stage { min-height: 0; display: grid; place-items: center; border: 1px solid rgba(32, 224, 211, 0.18); background: radial-gradient(circle at 50% 0%, rgba(32, 224, 211, 0.08), transparent 38%), #090d10; overflow: hidden; }
+      .media { max-width: 100%; max-height: calc(100vh - 120px); display: block; object-fit: contain; }
+      .image { width: auto; height: auto; }
+      .video { width: 100%; height: 100%; }
+      .audio { width: min(720px, 92vw); }
+      .empty { color: #9aa7ad; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="bar"><span class="name">${safeName}</span><span>Preview</span></div>
+      <section class="stage">${body}</section>
+    </main>
+  </body>
+</html>`;
 }
 
 function inlinePreviewAsset(ref: string, files: Record<string, string>): string | null {
@@ -834,7 +1240,27 @@ function inlinePreviewAsset(ref: string, files: Record<string, string>): string 
       return `data:image/${mime};base64,${content.trim()}`;
     }
   }
+  if (ext === 'mp4' || ext === 'webm' || ext === 'mov' || ext === 'm4v') {
+    if (/^[A-Za-z0-9+/=\r\n]+$/.test(content.trim())) {
+      const mime = ext === 'mov' || ext === 'm4v' ? 'mp4' : ext;
+      return `data:video/${mime};base64,${content.trim()}`;
+    }
+  }
+  if (ext === 'mp3' || ext === 'wav' || ext === 'ogg' || ext === 'm4a') {
+    if (/^[A-Za-z0-9+/=\r\n]+$/.test(content.trim())) {
+      const mime = ext === 'm4a' ? 'mp4' : ext;
+      return `data:audio/${mime};base64,${content.trim()}`;
+    }
+  }
   return null;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function resolveAsset(ref: string, files: Record<string, string>): string | null {
@@ -849,6 +1275,378 @@ function resolveAsset(ref: string, files: Record<string, string>): string | null
   const withoutDist = cleaned.replace(/^dist\//, '').replace(/^public\//, '');
   if (files[withoutDist] !== undefined) return withoutDist;
   return null;
+}
+
+// --------------------------------------------------------------------------
+// Templates gallery
+// --------------------------------------------------------------------------
+
+const TEMPLATE_PAGE_COPY: Record<TemplateKind | 'all', string> = {
+  all: 'Open Design starting points for prototypes, dashboards, decks, images, video, HyperFrames, audio, and marketing artifacts.',
+  prototype: 'Interactive product mockups: dashboards, apps, landing pages, internal tools, and stakeholder-ready screens.',
+  'live-artifact': 'Live artifacts and dashboards with real data surfaces, filters, charts, reports, and operational views.',
+  deck: 'Polished slide decks from a narrative brief: pitch decks, course modules, weekly reports, and product launches.',
+  image: 'Image-led artifacts: posters, social cards, infographics, campaign visuals, and product mockups.',
+  video: 'Video templates for product promos, explainers, cinematic sequences, and shortform storyboards.',
+  hyperframes: 'Agent-native HTML video and motion graphics: frame systems, timelines, promos, and MP4-ready compositions.',
+  audio: 'Audio artifacts for jingles, voiceover beds, sonic identity, and campaign sound.',
+  marketing: 'Growth and marketing systems: positioning, ads, CRO, email, social, launch, pricing, SEO, and sales enablement.',
+};
+
+const TEMPLATE_TONES: TemplateTone[] = ['teal', 'blue', 'lime', 'amber', 'violet', 'rose'];
+
+function buildTemplateCatalog(items: OpenDesignCatalogItem[], openDesignBaseUrl?: string | null): BuildTemplate[] {
+  const baseUrl = normalizeOpenDesignBaseUrl(openDesignBaseUrl);
+  const fromOpenDesign = items
+    .map((item, index) => catalogItemToTemplate(item, index, baseUrl))
+    .filter((template): template is BuildTemplate => Boolean(template));
+  if (fromOpenDesign.length === 0) {
+    return FALLBACK_STUDIO_TEMPLATES;
+  }
+  const merged = [...fromOpenDesign, ...FALLBACK_STUDIO_TEMPLATES];
+  const seen = new Set<string>();
+  return merged.filter((template) => {
+    const key = template.id.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function catalogItemToTemplate(item: OpenDesignCatalogItem, index: number, openDesignBaseUrl: string): BuildTemplate | null {
+  const tags = (item.tags ?? []).map((tag) => String(tag).toLowerCase());
+  const id = String(item.id || item.name || '').trim();
+  if (!id) return null;
+  const title = prettifyTemplateTitle(item.title || item.name || id);
+  const description = (item.description || '').trim();
+  const haystack = `${id} ${title} ${description} ${tags.join(' ')} ${item.mode ?? ''} ${item.scenario ?? ''}`.toLowerCase();
+  const kind = inferTemplateKind(item, haystack, tags);
+  if (!kind) return null;
+  if (!isTemplateLike(haystack, kind)) return null;
+  const scene = inferTemplateScene(kind, haystack, tags);
+  const author = item.author ? `@${String(item.author).replace(/^@/, '')}` : inferTemplateAuthor(id, item.sourceKind);
+  const source = item.sourceKind === 'bundled' || item.source === 'official' ? 'Open Design' : (item.source || 'Open Design');
+  const previewUrls = templatePreviewUrls(item, openDesignBaseUrl);
+  return {
+    id,
+    title,
+    author,
+    source,
+    kind,
+    scene,
+    description: description || `Open Design ${TEMPLATE_KIND_LABELS[kind].toLowerCase()} template.`,
+    prompt: `Use the "${title}" Open Design template. ${description || `Create a polished ${TEMPLATE_KIND_LABELS[kind].toLowerCase()} artifact from my brief.`}`,
+    tone: TEMPLATE_TONES[index % TEMPLATE_TONES.length],
+    tags,
+    previewUrls,
+    previewUrl: previewUrls[0],
+    previewHtmlSrc: templatePreviewHtmlSrc(item, id, openDesignBaseUrl),
+  };
+}
+
+function inferTemplateKind(item: OpenDesignCatalogItem, haystack: string, tags: string[]): TemplateKind | null {
+  const mode = String(item.mode || '').toLowerCase();
+  const previewType = String(item.preview?.type || '').toLowerCase();
+  if (mode === 'audio' || previewType === 'audio' || tags.includes('audio')) return 'audio';
+  if (haystack.includes('hyperframes') || haystack.includes('html-video')) return 'hyperframes';
+  if (mode === 'video' || previewType === 'video' || tags.includes('video') || tags.includes('video-template')) return 'video';
+  if (mode === 'image' || previewType === 'image' || tags.includes('image') || tags.includes('image-template')) return 'image';
+  if (mode === 'deck' || tags.includes('deck') || haystack.includes('slide deck') || haystack.includes('html-ppt') || haystack.includes('presentation')) return 'deck';
+  if (mode === 'live-artifact' || tags.includes('live-artifact') || haystack.includes('live artifact')) return 'live-artifact';
+  if (mode === 'prototype' || tags.includes('prototype') || tags.includes('template') || tags.includes('example')) return 'prototype';
+  if (haystack.includes('marketing') || haystack.includes('campaign')) return 'marketing';
+  return null;
+}
+
+function isTemplateLike(haystack: string, kind: TemplateKind): boolean {
+  if (kind === 'live-artifact' || kind === 'marketing') return true;
+  if (haystack.includes('design-system') || haystack.includes('scenario') && haystack.includes('default')) return false;
+  return (
+    haystack.includes('template')
+    || haystack.includes('example')
+    || haystack.includes('deck')
+    || haystack.includes('landing')
+    || haystack.includes('dashboard')
+    || haystack.includes('poster')
+    || haystack.includes('card')
+    || haystack.includes('report')
+    || haystack.includes('email')
+    || haystack.includes('video')
+  );
+}
+
+function inferTemplateScene(kind: TemplateKind, haystack: string, tags: string[]): string {
+  if (kind === 'deck') {
+    if (haystack.includes('pitch') || haystack.includes('business') || haystack.includes('investor')) return 'Pitch & business';
+    if (haystack.includes('course') || haystack.includes('training') || haystack.includes('education')) return 'Course & training';
+    if (haystack.includes('product') || haystack.includes('sales') || haystack.includes('weekly') || haystack.includes('launch')) return 'Product & sales';
+    if (haystack.includes('engineering') || haystack.includes('technical') || haystack.includes('runbook')) return 'Engineering talks';
+    return 'Creative decks';
+  }
+  if (kind === 'prototype') {
+    if (haystack.includes('dashboard') || haystack.includes('admin') || haystack.includes('analytics')) return 'Dashboards';
+    if (haystack.includes('app') || haystack.includes('mobile') || haystack.includes('onboarding') || haystack.includes('kanban')) return 'Apps';
+    if (haystack.includes('landing') || haystack.includes('marketing') || haystack.includes('email') || haystack.includes('poster')) return 'Landing & marketing';
+    if (haystack.includes('developer') || haystack.includes('docs') || haystack.includes('github') || haystack.includes('coding')) return 'Developer tools';
+    if (haystack.includes('report') || haystack.includes('invoice') || haystack.includes('meeting') || haystack.includes('runbook')) return 'Docs & reports';
+    return 'Brand & design';
+  }
+  if (kind === 'live-artifact') return haystack.includes('report') ? 'Reports' : 'Dashboards';
+  if (kind === 'image') {
+    if (haystack.includes('infographic')) return 'Infographics';
+    if (haystack.includes('poster') || haystack.includes('marketing')) return 'Marketing images';
+    if (haystack.includes('card') || haystack.includes('social')) return 'Social cards';
+    return 'Visual assets';
+  }
+  if (kind === 'video' || kind === 'hyperframes') {
+    if (haystack.includes('website') || haystack.includes('product') || haystack.includes('launch') || haystack.includes('promo')) return 'Product promos';
+    if (haystack.includes('cinematic')) return 'Cinematic';
+    if (haystack.includes('social') || haystack.includes('shortform')) return 'Shortform';
+    return kind === 'hyperframes' ? 'Motion frames' : 'Video templates';
+  }
+  if (kind === 'audio') return haystack.includes('jingle') ? 'Jingles' : 'Audio beds';
+  if (tags.includes('marketing')) return 'Campaigns';
+  return 'Marketing systems';
+}
+
+function normalizeOpenDesignBaseUrl(value?: string | null): string {
+  return (value || DEFAULT_OPEN_DESIGN_BASE_URL).replace(/\/+$/, '');
+}
+
+function absolutizeOpenDesignUrl(value: string | undefined, openDesignBaseUrl: string): string | undefined {
+  const raw = (value || '').trim();
+  if (!raw) return undefined;
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+  if (raw.startsWith('/')) return `${openDesignBaseUrl}${raw}`;
+  return `${openDesignBaseUrl}/${raw.replace(/^\.?\//, '')}`;
+}
+
+function openDesignAssetCacheUrl(url: string, openDesignBaseUrl: string): string | undefined {
+  if (!/^https?:\/\//i.test(url)) return undefined;
+  return `${openDesignBaseUrl}/api/asset-cache?url=${encodeURIComponent(url)}`;
+}
+
+function templatePreviewUrls(item: OpenDesignCatalogItem, openDesignBaseUrl: string): string[] {
+  const bakedPoster = item.bakedPreview?.poster;
+  const preview = item.preview;
+  const rawUrl = bakedPoster || preview?.image || preview?.poster || preview?.gif;
+  const absoluteUrl = absolutizeOpenDesignUrl(rawUrl, openDesignBaseUrl);
+  if (!absoluteUrl) return [];
+  const proxiedUrl = openDesignAssetCacheUrl(absoluteUrl, openDesignBaseUrl);
+  return Array.from(new Set([proxiedUrl, absoluteUrl].filter((url): url is string => Boolean(url))));
+}
+
+function templatePreviewHtmlSrc(item: OpenDesignCatalogItem, id: string, openDesignBaseUrl: string): string | undefined {
+  const previewType = String(item.preview?.type || '').toLowerCase();
+  if (previewType === 'html' && item.preview?.entry) {
+    return `${openDesignBaseUrl}/api/plugins/${encodeURIComponent(id)}/preview`;
+  }
+  const example = item.exampleOutputs?.find((entry) => typeof entry?.path === 'string' && entry.path.trim());
+  const path = example?.path || '';
+  const stem = path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '');
+  if (!stem) return undefined;
+  return `${openDesignBaseUrl}/api/plugins/${encodeURIComponent(id)}/example/${encodeURIComponent(stem)}`;
+}
+
+function inferTemplateAuthor(id: string, sourceKind?: string): string {
+  if (sourceKind === 'bundled') return '@open-design';
+  if (id.includes('eli') || id.includes('aero') || id.includes('landing')) return '@eli';
+  return '@open-design';
+}
+
+function prettifyTemplateTitle(value: string): string {
+  const raw = value.replace(/^example[-_]/, '').replace(/^video-template[-_]/, '').replace(/^image-template[-_]/, '');
+  return raw
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.length <= 3 && part === part.toLowerCase() ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+    .replace(/\bAi\b/g, 'AI')
+    .replace(/\bUi\b/g, 'UI')
+    .replace(/\bHtml\b/g, 'HTML')
+    .replace(/\bPpt\b/g, 'PPT');
+}
+
+function TemplatesGallery({
+  templates,
+  allTemplates,
+  activeKind,
+  activeScene,
+  search,
+  onKindChange,
+  onSceneChange,
+  onSearchChange,
+  onUseTemplate,
+}: {
+  templates: BuildTemplate[];
+  allTemplates: BuildTemplate[];
+  activeKind: TemplateKind | 'all';
+  activeScene: string;
+  search: string;
+  onKindChange: (kind: TemplateKind | 'all') => void;
+  onSceneChange: (scene: string) => void;
+  onSearchChange: (value: string) => void;
+  onUseTemplate: (template: BuildTemplate) => void;
+}) {
+  const kinds: Array<TemplateKind | 'all'> = ['all', 'prototype', 'live-artifact', 'deck', 'image', 'video', 'hyperframes', 'audio'];
+  const counts = useMemo(() => {
+    const next: Record<TemplateKind | 'all', number> = {
+      all: allTemplates.length,
+      prototype: 0,
+      'live-artifact': 0,
+      deck: 0,
+      image: 0,
+      video: 0,
+      hyperframes: 0,
+      marketing: 0,
+      audio: 0,
+    };
+    allTemplates.forEach((template) => {
+      next[template.kind] += 1;
+    });
+    return next;
+  }, [allTemplates]);
+  const sceneCounts = useMemo(() => {
+    const pool = activeKind === 'all' ? allTemplates : allTemplates.filter((template) => template.kind === activeKind);
+    const next = new Map<string, number>();
+    pool.forEach((template) => {
+      next.set(template.scene, (next.get(template.scene) ?? 0) + 1);
+    });
+    return Array.from(next.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 8);
+  }, [activeKind, allTemplates]);
+  const heading = activeKind === 'all' ? 'Templates' : `${TEMPLATE_KIND_LABELS[activeKind]}.`;
+  const subcopy = TEMPLATE_PAGE_COPY[activeKind] ?? TEMPLATE_PAGE_COPY.all;
+
+  return (
+    <div className="ab__templates">
+      <header className="ab__templates-head">
+        <div>
+          <h2 className="ab__templates-title">{heading}</h2>
+          <p className="ab__templates-sub">{subcopy}</p>
+        </div>
+      </header>
+
+      <div className="ab__filter-strip" id="filter-strip">
+        <div className="ab__filter-row">
+          <span className="ab__filter-label">Artifact kind</span>
+          <div className="ab__template-filters" aria-label="Artifact kind">
+        {kinds.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className={`ab__template-filter ${activeKind === kind ? 'is-active' : ''}`}
+            onClick={() => onKindChange(kind)}
+          >
+            <span>{TEMPLATE_KIND_LABELS[kind]}</span>
+            <b>{counts[kind]}</b>
+          </button>
+        ))}
+          </div>
+        </div>
+        <div className="ab__filter-row">
+          <span className="ab__filter-label">Scene</span>
+          <div className="ab__template-filters" aria-label="Template scene">
+            <button
+              type="button"
+              className={`ab__template-filter ${activeScene === 'all' ? 'is-active' : ''}`}
+              onClick={() => onSceneChange('all')}
+            >
+              <span>All</span>
+              <b>{activeKind === 'all' ? allTemplates.length : counts[activeKind]}</b>
+            </button>
+            {sceneCounts.map(([scene, count]) => (
+              <button
+                key={scene}
+                type="button"
+                className={`ab__template-filter ${activeScene === scene ? 'is-active' : ''}`}
+                onClick={() => onSceneChange(scene)}
+              >
+                <span>{scene}</span>
+                <b>{count}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <label className="ab__template-search">
+        <Search size={15} aria-hidden="true" />
+        <input
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search by name or keyword..."
+        />
+      </label>
+
+      {templates.length === 0 ? (
+        <div className="ab__templates-empty">No templates match that search.</div>
+      ) : (
+        <div className="ab__template-grid">
+          {templates.map((template) => (
+            <article key={template.id} className={`ab__template-card is-${template.tone}`}>
+              <div className="ab__template-image">
+                <TemplatePreview template={template} />
+                <span className="ab__template-kind">{TEMPLATE_KIND_LABELS[template.kind]}</span>
+              </div>
+              <div className="ab__template-copy">
+                <span className="ab__template-prompt">Read full prompt {'->'}</span>
+                <h3>{template.title}</h3>
+                <p>{template.description}</p>
+              </div>
+              <button
+                type="button"
+                className="ab__template-use"
+                onClick={() => onUseTemplate(template)}
+              >
+                <Wand2 size={14} aria-hidden="true" />
+                <span>Use this template</span>
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplatePreview({ template }: { template: BuildTemplate }) {
+  const previewUrls = template.previewUrls?.length ? template.previewUrls : (template.previewUrl ? [template.previewUrl] : []);
+  const [urlIndex, setUrlIndex] = useState(0);
+  const currentPreviewUrl = previewUrls[urlIndex];
+
+  useEffect(() => {
+    setUrlIndex(0);
+  }, [template.id, previewUrls.join('|')]);
+
+  if (currentPreviewUrl) {
+    return (
+      <img
+        src={currentPreviewUrl}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setUrlIndex((index) => index + 1)}
+      />
+    );
+  }
+
+  if (template.previewHtmlSrc) {
+    return (
+      <iframe
+        className="ab__template-frame"
+        src={template.previewHtmlSrc}
+        title={`${template.title} preview`}
+        loading="lazy"
+        sandbox="allow-scripts allow-same-origin"
+      />
+    );
+  }
+
+  return (
+    <div className="ab__template-empty-preview" aria-hidden="true" />
+  );
 }
 
 // --------------------------------------------------------------------------
