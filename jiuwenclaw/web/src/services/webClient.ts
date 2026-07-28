@@ -489,7 +489,8 @@ class WebClient {
     if (options.apiBase) params.set('api_base', options.apiBase);
     if (options.model) params.set('model', options.model);
     if (options.projectPath) params.set('project_path', options.projectPath);
-    if (options.authToken) params.set('auth_token', options.authToken);
+    // Authentication is attached to each request payload. Keeping session
+    // tokens out of the URL prevents leakage through proxy logs and telemetry.
     const query = params.toString();
     const target = `${base}${path}`;
     return query ? `${target}?${query}` : target;

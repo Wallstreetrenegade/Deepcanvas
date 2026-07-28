@@ -3,6 +3,14 @@
 .firebase
 .playwright-mcp
 .pytest_cache
+.venv
+**/.venv
+htmlcov
+coverage.xml
+**/dist
+**/.next
+*-dev.out.log
+*-dev.err.log
 logs
 node_modules
 **/node_modules

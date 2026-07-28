@@ -67,7 +67,7 @@ try {
   const walkDirectory = (absoluteDirPath, relativeDirPath = '') => {
     const entries = fs.readdirSync(absoluteDirPath, { withFileTypes: true });
     entries.forEach((entry) => {
-      if (entry.name.startsWith('.')) {
+      if (entry.name.startsWith('.') || entry.name === '__pycache__') {
         return;
       }
       const absoluteEntryPath = path.join(absoluteDirPath, entry.name);
@@ -78,7 +78,7 @@ try {
         walkDirectory(absoluteEntryPath, relativeEntryPath);
         return;
       }
-      if (!entry.isFile()) {
+      if (!entry.isFile() || /\.(pyc|pyo)$/i.test(entry.name)) {
         return;
       }
       const relativeFolderPath = path.dirname(relativeEntryPath);

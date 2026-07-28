@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import urlsplit
@@ -19,7 +20,15 @@ def is_allowed_browser_origin(origin: str | None) -> bool:
         parsed = urlsplit(origin)
     except ValueError:
         return False
-    return parsed.hostname in _ALLOWED_WS_ORIGIN_HOSTS
+    configured = {
+        host.strip().lower()
+        for host in os.getenv("ALLOWED_WS_ORIGIN_HOSTS", "").split(",")
+        if host.strip()
+    }
+    render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip().lower()
+    if render_host:
+        configured.add(render_host)
+    return (parsed.hostname or "").lower() in (_ALLOWED_WS_ORIGIN_HOSTS | configured)
 
 
 def extract_handshake_request(args: tuple[Any, ...]) -> tuple[str, Any]:

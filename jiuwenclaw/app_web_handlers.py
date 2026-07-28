@@ -61,6 +61,11 @@ _ENV_FILE = get_env_file()
 load_dotenv(dotenv_path=_ENV_FILE)
 
 
+def _signups_allowed() -> bool:
+    value = os.getenv("DEEPCANVAS_ALLOW_SIGNUPS", "true").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 # 仅满足 Channel 构造所需，不入队、不路由；仅用 channel_manager + message_handler 做入站/出站
 class _DummyBus:
     async def publish_user_messages(self, msg):  # noqa: ANN001, ARG002
@@ -1115,6 +1120,15 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
         await channel.send_response(ws, req_id, ok=True, payload={"session_id": session_id_to_delete})
 
     async def _auth_signup(ws, req_id, params, session_id):
+        if not _signups_allowed():
+            await channel.send_response(
+                ws,
+                req_id,
+                ok=False,
+                error="Account registration is closed.",
+                code="SIGNUPS_DISABLED",
+            )
+            return
         if not isinstance(params, dict):
             await channel.send_response(ws, req_id, ok=False, error="params must be object", code="BAD_REQUEST")
             return

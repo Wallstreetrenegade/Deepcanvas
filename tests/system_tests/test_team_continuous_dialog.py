@@ -1,6 +1,6 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 
-"""System test for Team mode continuous dialog via WebSocket.
+r"""System test for Team mode continuous dialog via WebSocket.
 
 Test scenario:
 1. Connect to WebSocket

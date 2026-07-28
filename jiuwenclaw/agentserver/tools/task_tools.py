@@ -95,6 +95,9 @@ def _apply_ce_defaults() -> None:
 
 def _is_task_memory_enabled() -> bool:
     """Check if task memory is enabled via config or environment."""
+    env_value = os.getenv("TASK_MEMORY_ENABLED")
+    if env_value is not None:
+        return env_value.strip().lower() in {"1", "true", "yes", "on"}
     from jiuwenclaw.config import get_config
     cfg = get_config()
     task_memory_cfg = cfg.get("task_memory", {})

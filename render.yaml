@@ -21,5 +21,11 @@ services:
         value: /ws
       - key: LOG_LEVEL
         value: INFO
+      - key: DEEPCANVAS_REQUIRE_WEB_AUTH
+        value: "true"
+      - key: DEEPCANVAS_ALLOW_SIGNUPS
+        value: "true"
+      - key: PLUNK_AUTOSTART
+        value: "false"
       - key: UPLOAD_POST_API_KEY
         sync: false

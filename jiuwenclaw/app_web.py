@@ -177,6 +177,8 @@ class _SpaStaticHandler(SimpleHTTPRequestHandler):
     class _WsTextFrameParser:
         """Parse websocket text frames from a byte stream."""
 
+        _MAX_WS_FRAME_BYTES = 16 * 1024 * 1024
+
         def __init__(self) -> None:
             self._buffer = bytearray()
             self._fragmented_text = bytearray()
@@ -208,6 +210,9 @@ class _SpaStaticHandler(SimpleHTTPRequestHandler):
                         break
                     payload_len = int.from_bytes(self._buffer[idx : idx + 8], "big")
                     idx += 8
+
+                if payload_len > self._MAX_WS_FRAME_BYTES:
+                    raise ValueError("websocket frame exceeded maximum size")
 
                 mask_key = b""
                 if masked:

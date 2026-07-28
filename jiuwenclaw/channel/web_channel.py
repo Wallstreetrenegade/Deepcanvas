@@ -419,7 +419,11 @@ class WebChannel(BaseChannel):
         setattr(ws, "_exclaw_auth_user", query_user)
         remote = getattr(ws, "remote_address", None)
         self._clients.add(ws)
-        logger.info(f"WebChannel 新连接: remote={remote} query={query}")
+        logger.info(
+            "WebChannel connection: remote=%s query_keys=%s",
+            remote,
+            sorted(query),
+        )
 
         # 触发连接钩子（如发送 connection.ack）
         for hook in self._connect_hooks:
