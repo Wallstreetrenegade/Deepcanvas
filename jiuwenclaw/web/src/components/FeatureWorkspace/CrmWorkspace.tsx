@@ -65,6 +65,10 @@ function formatDateLabel(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function getColumnClassName(key: string): string {
+  return `feature-crm__column feature-crm__column--${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
 function compareLeads(left: CrmLead, right: CrmLead, sortKey: string, direction: 'asc' | 'desc'): number {
   const leftValue = getLeadFieldValue(left, sortKey);
   const rightValue = getLeadFieldValue(right, sortKey);
@@ -483,6 +487,10 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
 
         <div className="feature-crm__table-wrap">
           <table className={`feature-crm__table feature-crm__table--${density}`}>
+            <colgroup>
+              <col className="feature-crm__column feature-crm__column--check" />
+              {visibleColumns.map((column) => <col key={column.key} className={getColumnClassName(column.key)} />)}
+            </colgroup>
             <thead>
               <tr>
                 <th className="feature-crm__check-column">
@@ -495,7 +503,7 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
                   </label>
                 </th>
                 {visibleColumns.map((column) => (
-                  <th key={column.key}>
+                  <th key={column.key} className={getColumnClassName(column.key)}>
                     <button type="button" className="feature-crm__sort" onClick={() => setSort(column.key)}>
                       <span>{column.label}</span>
                       <small>{sortKey === column.key ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</small>
@@ -517,12 +525,11 @@ export function CrmWorkspace({ onExit }: CrmWorkspaceProps) {
                     </label>
                   </td>
                   {visibleColumns.map((column) => (
-                    <td key={column.key}>
+                    <td key={column.key} className={getColumnClassName(column.key)}>
                       {column.key === 'name' ? (
                         <div className="feature-crm__lead-cell">
                           <button type="button" className="feature-crm__lead-trigger" onClick={() => openLead(lead.id)}>
                             <span>{lead.name}</span>
-                            <small>{lead.company || lead.source}</small>
                           </button>
                           <button
                             type="button"

@@ -11,6 +11,11 @@
       "isMarkdown": true
     },
     {
+      "name": "BOOTSTRAP.md",
+      "path": "agent/jiuwenclaw_workspace/BOOTSTRAP.md",
+      "isMarkdown": true
+    },
+    {
       "name": "HEARTBEAT.md",
       "path": "agent/jiuwenclaw_workspace/HEARTBEAT.md",
       "isMarkdown": true
