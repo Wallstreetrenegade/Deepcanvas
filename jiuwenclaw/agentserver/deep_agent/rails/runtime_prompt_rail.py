@@ -90,10 +90,12 @@ class RuntimePromptRail(DeepAgentRail):
 
         root = Path(str(workspace_root))
         file_order = [
+            ("BOOTSTRAP.md", "First-run birth sequence"),
             ("AGENT.md", "Agent instructions"),
             ("SOUL.md", "Soul / personality"),
             ("IDENTITY.md", "Identity"),
             ("USER.md", "User profile"),
+            ("memory/MEMORY.md", "Long-term memory"),
         ]
 
         sections: list[str] = []

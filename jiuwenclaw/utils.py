@@ -754,6 +754,7 @@ def prepare_workspace(
     # Files with _ZH/_EN suffix are copied to the workspace without suffix
     suffix = "_ZH" if resolved_lang == "zh" else "_EN"
     multilang_files = [
+        (f"BOOTSTRAP{suffix}.md", "BOOTSTRAP.md"),
         (f"AGENT{suffix}.md", "AGENT.md"),
         (f"HEARTBEAT{suffix}.md", "HEARTBEAT.md"),
         (f"IDENTITY{suffix}.md", "IDENTITY.md"),

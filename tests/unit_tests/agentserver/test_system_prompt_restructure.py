@@ -63,6 +63,24 @@ async def test_runtime_time_section_participates_in_priority_order():
     assert "频道：web" in prompt
 
 
+def test_runtime_persona_includes_bootstrap_and_long_term_memory(tmp_path):
+    (tmp_path / "BOOTSTRAP.md").write_text("Meet the user first.", encoding="utf-8")
+    (tmp_path / "AGENT.md").write_text("Agent instructions.", encoding="utf-8")
+    memory_dir = tmp_path / "memory"
+    memory_dir.mkdir()
+    (memory_dir / "MEMORY.md").write_text("A durable decision.", encoding="utf-8")
+
+    runtime_rail = RuntimePromptRail(language="en")
+    runtime_rail.workspace = SimpleNamespace(root_path=tmp_path)
+
+    content = runtime_rail._build_workspace_persona_content()
+
+    assert "First-run birth sequence (`BOOTSTRAP.md`)" in content
+    assert "Meet the user first." in content
+    assert "Long-term memory (`memory/MEMORY.md`)" in content
+    assert "A durable decision." in content
+
+
 def test_resolve_skill_mode_accepts_all_and_auto_list():
     assert JiuWenClawDeepAdapter._resolve_skill_mode({"skill_mode": "all"}) == "all"
     assert JiuWenClawDeepAdapter._resolve_skill_mode({"skill_mode": "auto_list"}) == "auto_list"
