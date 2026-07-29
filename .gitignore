@@ -34,6 +34,8 @@ yarn-error.log*
 pnpm-debug.log*
 *-dev.out.log
 *-dev.err.log
+deepcanvas-local.out.log
+deepcanvas-local.err.log
 
 # Environment files
 .env
