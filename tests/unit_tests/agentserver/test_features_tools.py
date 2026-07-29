@@ -14,6 +14,9 @@ def test_feature_tools_export_expected_main_agent_surface():
     names = [tool.card.name for tool in tools]
 
     assert len(names) == len(set(names))
+    # Keep enough headroom under OpenAI's 128-tool request limit for the
+    # shared runtime, cron, skill, and Open Design bridges.
+    assert len(names) <= 60
     assert "features_catalog" in names
     assert "features_overview" in names
     assert "features_state_get" in names
