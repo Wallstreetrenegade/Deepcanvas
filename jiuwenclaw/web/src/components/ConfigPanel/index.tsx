@@ -797,19 +797,20 @@ export function ConfigPanel({
     for (const [key, value] of Object.entries(config)) {
       next[key] = normalizeConfigValue(value);
     }
-    for (const key of Object.keys(next)) {
-      const providerKey = modelProviderKeyForModelKey(key);
-      const parts = providerKey ? providerKeyParts(providerKey) : null;
-      const provider = providerKey ? next[providerKey] ?? '' : '';
-      if (parts && (key.endsWith('model') || key === 'model')) {
-        next[key] = normalizeModelSelection(parts.bucket, provider, next[key]);
-      }
-    }
     return next;
   }, [config]);
 
   useEffect(() => {
-    setDraftValues(normalizedConfig);
+    const nextDraft = { ...normalizedConfig };
+    for (const key of Object.keys(nextDraft)) {
+      const providerKey = modelProviderKeyForModelKey(key);
+      const parts = providerKey ? providerKeyParts(providerKey) : null;
+      const provider = providerKey ? nextDraft[providerKey] ?? '' : '';
+      if (parts && (key.endsWith('model') || key === 'model')) {
+        nextDraft[key] = normalizeModelSelection(parts.bucket, provider, nextDraft[key]);
+      }
+    }
+    setDraftValues(nextDraft);
     setError(null);
   }, [normalizedConfig]);
 

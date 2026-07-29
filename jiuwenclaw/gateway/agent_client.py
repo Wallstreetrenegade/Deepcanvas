@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 _STREAM_TRAILING_MESSAGE_GRACE_SECONDS = 0.7
 _UNARY_REQUEST_TIMEOUT_SECONDS = 60.0
 _WS_MAX_SIZE = 8 * 2**20
+_SENSITIVE_LOG_KEY_PARTS = (
+    "api_key",
+    "authorization",
+    "credential",
+    "password",
+    "private_key",
+    "secret",
+    "token",
+)
 
 
 def _wire_request_id_key(request_id: Any) -> str:
@@ -35,10 +44,28 @@ def _wire_request_id_key(request_id: Any) -> str:
     return str(request_id)
 
 
+def _redact_for_log(data: Any) -> Any:
+    """Return a logging-safe copy of nested wire data."""
+    if isinstance(data, dict):
+        redacted: dict[Any, Any] = {}
+        for key, value in data.items():
+            normalized_key = str(key).lower().replace("-", "_")
+            if any(part in normalized_key for part in _SENSITIVE_LOG_KEY_PARTS):
+                redacted[key] = "[REDACTED]" if value else value
+            else:
+                redacted[key] = _redact_for_log(value)
+        return redacted
+    if isinstance(data, list):
+        return [_redact_for_log(value) for value in data]
+    if isinstance(data, tuple):
+        return tuple(_redact_for_log(value) for value in data)
+    return data
+
+
 def _to_json(data: Any) -> str:
     """将任意对象序列化为日志友好的 JSON 字符串."""
     try:
-        return json.dumps(data, ensure_ascii=False, sort_keys=True, default=str)
+        return json.dumps(_redact_for_log(data), ensure_ascii=False, sort_keys=True, default=str)
     except Exception:
         return repr(data)
 
@@ -309,7 +336,7 @@ class WebSocketAgentServerClient(AgentServerClient):
                 raise RuntimeError(
                     f"AgentServer 非流式请求超时 (request_id={rid}, timeout={_UNARY_REQUEST_TIMEOUT_SECONDS}s)"
                 ) from e
-            logger.info("[WebSocketAgentServerClient] 收到响应(非流式) raw: %s", json.dumps(data, ensure_ascii=False))
+            logger.info("[WebSocketAgentServerClient] 收到响应(非流式) raw: %s", _to_json(data))
             resp = parse_agent_server_wire_unary(data)
             logger.info("[WebSocketAgentServerClient] 收到完整响应 AgentResponse: %s", _to_json(asdict(resp)))
             return resp
@@ -366,7 +393,7 @@ class WebSocketAgentServerClient(AgentServerClient):
                         break
                 else:
                     data = await queue.get()
-                logger.info("[WebSocketAgentServerClient] 收到流式事件 raw: %s", json.dumps(data, ensure_ascii=False))
+                logger.info("[WebSocketAgentServerClient] 收到流式事件 raw: %s", _to_json(data))
                 chunk = parse_agent_server_wire_chunk(data)
                 chunk_count += 1
                 logger.info(

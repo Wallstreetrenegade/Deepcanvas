@@ -4,7 +4,7 @@ import pytest
 
 from jiuwenclaw.e2a.gateway_normalize import e2a_from_agent_fields
 from jiuwenclaw.e2a.wire_codec import encode_agent_chunk_for_wire
-from jiuwenclaw.gateway.agent_client import WebSocketAgentServerClient
+from jiuwenclaw.gateway.agent_client import WebSocketAgentServerClient, _to_json
 from jiuwenclaw.schema.agent import AgentResponseChunk
 
 
@@ -25,6 +25,24 @@ class AgentClientHarness(WebSocketAgentServerClient):
 
     def get_message_queue_for_test(self, request_id: str):
         return self._message_queues[request_id]
+
+
+def test_to_json_redacts_nested_credentials() -> None:
+    rendered = _to_json(
+        {
+            "params": {
+                "config": {"api_key": "sk-secret", "model_name": "gpt-test"},
+                "env": {"OPENAI_API_KEY": "sk-env", "AUTHORIZATION": "Bearer token"},
+            },
+            "message": "safe",
+        }
+    )
+
+    assert "sk-secret" not in rendered
+    assert "sk-env" not in rendered
+    assert "Bearer token" not in rendered
+    assert "gpt-test" in rendered
+    assert '"message": "safe"' in rendered
 
 
 @pytest.mark.asyncio
