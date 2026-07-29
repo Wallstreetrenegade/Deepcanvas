@@ -115,7 +115,15 @@ def _build_optional_sidecars() -> list[ServiceCommand]:
         commands.append(
             (
                 "open-design-daemon",
-                ["pnpm", "exec", "od", "--port", "7456", "--host", "127.0.0.1", "--no-open"],
+                [
+                    "node",
+                    "apps/daemon/bin/od.mjs",
+                    "--port",
+                    "7456",
+                    "--host",
+                    "127.0.0.1",
+                    "--no-open",
+                ],
                 OPEN_DESIGN_DIR,
                 None,
             )

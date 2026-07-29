@@ -125,7 +125,15 @@ def main() -> None:
             else:
                 processes["open-design-daemon"] = _start_process(
                     "open-design-daemon",
-                    ["pnpm", "exec", "od", "--no-open", "--port", "7456", "--host", "127.0.0.1"],
+                    [
+                        "node",
+                        "apps/daemon/bin/od.mjs",
+                        "--no-open",
+                        "--port",
+                        "7456",
+                        "--host",
+                        "127.0.0.1",
+                    ],
                     open_design_dir,
                 )
         time.sleep(1.0)

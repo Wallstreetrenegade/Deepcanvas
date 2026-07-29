@@ -1,0 +1,8 @@
+deepcanvas.app {
+	encode zstd gzip
+	reverse_proxy deepcanvas:10000
+}
+
+www.deepcanvas.app {
+	redir https://deepcanvas.app{uri} permanent
+}
