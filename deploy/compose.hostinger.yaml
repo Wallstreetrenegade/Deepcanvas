@@ -17,7 +17,7 @@ services:
       LOG_LEVEL: INFO
       DEEPCANVAS_REQUIRE_WEB_AUTH: "true"
       DEEPCANVAS_ALLOW_SIGNUPS: "true"
-      ALLOWED_WS_ORIGIN_HOSTS: deepcanvas.app,www.deepcanvas.app
+      ALLOWED_WS_ORIGIN_HOSTS: deepcanvas.app,www.deepcanvas.app,deepcanvas.168-231-68-253.sslip.io
       PLUNK_AUTOSTART: "false"
       OPEN_DESIGN_DAEMON_AUTOSTART: "true"
     volumes:

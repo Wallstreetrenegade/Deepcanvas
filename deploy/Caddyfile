@@ -3,6 +3,11 @@ deepcanvas.app {
 	reverse_proxy deepcanvas:10000
 }
 
+deepcanvas.168-231-68-253.sslip.io {
+	encode zstd gzip
+	reverse_proxy deepcanvas:10000
+}
+
 www.deepcanvas.app {
 	redir https://deepcanvas.app{uri} permanent
 }
