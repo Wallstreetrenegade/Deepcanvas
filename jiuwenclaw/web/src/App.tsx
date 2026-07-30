@@ -34,6 +34,7 @@ import {
 } from './features/tool-events/toolEventNormalizer';
 import { useWebSocket } from './hooks';
 import { webRequest } from './services/webClient';
+import { TeamUp } from './components/TeamUp';
 import { AgentMode, UserAnswer } from './types';
 import { useSessionStore, useChatStore, useTodoStore } from './stores';
 import { useFeatureStore } from './stores/featureStore';
@@ -1088,6 +1089,8 @@ function AppContent({ authSession, onSignOut }: { authSession: AuthSession; onSi
               Sign out
             </button>
           </div>
+
+          <TeamUp currentUserId={authSession.user.id} disabled={!isConnected} />
         </div>
       </header>
 

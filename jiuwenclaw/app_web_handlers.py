@@ -2181,6 +2181,12 @@ def _register_web_handlers(bind: WebHandlersBindParams) -> None:
         register_pi_handlers(channel)
     except Exception as _pi_exc:  # noqa: BLE001
         logger.exception("[pi_agent] failed to register handlers: %s", _pi_exc)
+
+    try:
+        from jiuwenclaw.team_up import register_team_up_handlers
+        register_team_up_handlers(channel)
+    except Exception as _team_up_exc:  # noqa: BLE001
+        logger.exception("[team_up] failed to register handlers: %s", _team_up_exc)
     # Social Station - registers 24 social.station.* methods
     try:
         from jiuwenclaw.pi_agent.social_station import register_social_station_handlers

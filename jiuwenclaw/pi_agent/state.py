@@ -32,6 +32,18 @@ _CACHE: dict[str, tuple[float, Any]] = {}
 
 
 def _base_dir() -> Path:
+    # A granted feature moves into team-owned storage; every other feature
+    # remains in the authenticated user's private directory.
+    return _base_dir_for_feature("")
+
+
+def _base_dir_for_feature(feature: str) -> Path:
+    if feature:
+        from jiuwenclaw.team_up import shared_feature_dir
+
+        shared = shared_feature_dir(feature)
+        if shared is not None:
+            return shared
     base = get_current_user_data_dir() / "pi_agent"
     base.mkdir(parents=True, exist_ok=True)
     return base
@@ -39,7 +51,7 @@ def _base_dir() -> Path:
 
 def _feature_path(feature: str) -> Path:
     safe = feature.replace("/", "_").replace("\\", "_")
-    return _base_dir() / f"{safe}.json"
+    return _base_dir_for_feature(feature) / f"{safe}.json"
 
 
 def load_feature(feature: str, default: Any = None) -> Any:
